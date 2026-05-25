@@ -33,10 +33,10 @@ onMounted(async () => {
   settings.value = await getSettings();
 });
 
-async function handleAddTodo() {
+async function handleAddTodo(content: string) {
   const newTodo: TodoItem = {
     id: crypto.randomUUID(),
-    content: "",
+    content,
     completed: false,
     createdAt: new Date().toISOString(),
     completedAt: null,

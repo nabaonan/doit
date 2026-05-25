@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch } from "vue";
+import { ref, watch, nextTick } from "vue";
 import draggable from "vuedraggable";
 import TodoItem from "./TodoItem.vue";
 import type { TodoItem as TodoItemType, AppSettings } from "../types";
@@ -10,7 +10,7 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  (e: "add-todo"): void;
+  (e: "add-todo", content: string): void;
   (e: "update-todo", id: string, content: string): void;
   (e: "toggle-complete", id: string): void;
   (e: "reorder", ids: string[]): void;
@@ -21,41 +21,64 @@ const newTodoInput = ref("");
 const inputRef = ref<HTMLInputElement | null>(null);
 const editingId = ref<string | null>(null);
 const editContent = ref("");
+const isDragging = ref(false);
 
-const activeTodos = computed(() =>
-  props.todos.filter((t) => !t.completed)
-);
-
-const completedTodos = computed(() =>
-  props.todos.filter((t) => t.completed)
-);
-
-const draggableList = ref<TodoItemType[]>([...activeTodos.value]);
+const draggableList = ref<TodoItemType[]>([]);
+const listContainerRef = ref<HTMLElement | null>(null);
 
 watch(
   () => props.todos,
-  () => {
-    const active = props.todos.filter((t) => !t.completed);
-    const currentIds = draggableList.value.map((t) => t.id);
-    const activeIds = active.map((t) => t.id);
+  async (todos) => {
+    if (isDragging.value) return;
 
-    if (
-      activeIds.length !== currentIds.length ||
-      !activeIds.every((id, i) => id === currentIds[i])
-    ) {
-      const reordered = activeIds.every((id) => currentIds.includes(id));
-      if (!reordered) {
-        draggableList.value = [...active];
-      }
+    const container = listContainerRef.value;
+    const oldTops = new Map<string, number>();
+
+    if (container) {
+      container.querySelectorAll("[data-todo-id]").forEach((el) => {
+        const id = (el as HTMLElement).dataset.todoId;
+        if (id) oldTops.set(id, el.getBoundingClientRect().top);
+      });
+    }
+
+    draggableList.value = [...todos];
+
+    await nextTick();
+
+    if (container) {
+      container.querySelectorAll("[data-todo-id]").forEach((el) => {
+        const id = (el as HTMLElement).dataset.todoId;
+        if (!id) return;
+        const oldTop = oldTops.get(id);
+        if (oldTop === undefined) return;
+        const newTop = el.getBoundingClientRect().top;
+        const delta = oldTop - newTop;
+        if (Math.abs(delta) < 0.5) return;
+
+        const htmlEl = el as HTMLElement;
+        htmlEl.style.transition = "none";
+        htmlEl.style.transform = `translateY(${delta}px)`;
+
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            htmlEl.style.transition = "transform 0.3s ease";
+            htmlEl.style.transform = "";
+          });
+        });
+      });
     }
   },
-  { deep: true }
+  { deep: true, immediate: true }
 );
 
-function handleDragChange() {
-  const reorderedActiveIds = draggableList.value.map((t) => t.id);
-  const completedIds = completedTodos.value.map((t) => t.id);
-  emit("reorder", [...reorderedActiveIds, ...completedIds]);
+function onDragStart() {
+  isDragging.value = true;
+}
+
+function onDragEnd() {
+  isDragging.value = false;
+  const ids = draggableList.value.map((t) => t.id);
+  emit("reorder", ids);
 }
 
 function onAddTodo() {
@@ -66,7 +89,7 @@ function onAddTodo() {
   if (hasEmptyTodo) return;
 
   newTodoInput.value = "";
-  emit("add-todo");
+  emit("add-todo", trimmed);
 }
 
 function startEdit(todo: TodoItemType) {
@@ -104,21 +127,23 @@ function onToggleComplete(id: string) {
         v-model="newTodoInput"
         type="text"
         class="w-full bg-transparent text-xl text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] outline-none py-2"
-        :placeholder="'输入新待办事项... 按回车新增'"
+        placeholder="输入新待办事项... 按回车新增"
         @keydown.enter="onAddTodo"
       />
     </div>
 
-    <draggable
-      v-model="draggableList"
-      item-key="id"
-      class="flex flex-col"
-      :animation="200"
-      ghost-class="opacity-50"
-      @change="handleDragChange"
+    <div ref="listContainerRef" class="flex flex-col">
+      <draggable
+        :list="draggableList"
+        item-key="id"
+        :animation="200"
+        ghost-class="opacity-50"
+      filter=".completed-item"
+      @start="onDragStart"
+      @end="onDragEnd"
     >
       <template #item="{ element }">
-        <div>
+        <div :class="{ 'completed-item': element.completed }" :data-todo-id="element.id">
           <TodoItem
             :key="element.id"
             :todo="element"
@@ -129,30 +154,11 @@ function onToggleComplete(id: string) {
             @start-edit="startEdit(element)"
             @save-edit="(content: string) => saveEdit(content)"
             @cancel-edit="cancelEdit"
+            @delete-todo="emit('delete-todo', element.id)"
           />
         </div>
       </template>
     </draggable>
-
-    <div
-      v-if="completedTodos.length > 0"
-      class="border-t-2 border-[var(--border)] mt-2"
-    >
-      <p class="px-4 py-2 text-xs font-medium text-[var(--muted-foreground)] uppercase tracking-wider">
-        已完成 ({{ completedTodos.length }})
-      </p>
-      <TodoItem
-        v-for="todo in completedTodos"
-        :key="todo.id"
-        :todo="todo"
-        :settings="settings"
-        :is-editing="editingId === todo.id"
-        :edit-content="editContent"
-        @toggle-complete="onToggleComplete(todo.id)"
-        @start-edit="startEdit(todo)"
-        @save-edit="(content: string) => saveEdit(content)"
-        @cancel-edit="cancelEdit"
-      />
     </div>
 
     <div

@@ -4,9 +4,8 @@ import { X, Copy, FileDown, FileText } from "lucide-vue-next";
 import dayjs from "dayjs";
 import isoWeek from "dayjs/plugin/isoWeek";
 import jsPDF from "jspdf";
-import { save } from "@tauri-apps/plugin-dialog";
-import { writeTextFile, writeFile } from "@tauri-apps/plugin-fs";
 import type { TodoItem } from "../types";
+import { isTauri } from "../services/tauriEnv";
 
 dayjs.extend(isoWeek);
 
@@ -113,7 +112,13 @@ async function copyToClipboard() {
 }
 
 async function exportMarkdown() {
+  if (!isTauri) {
+    copyToClipboard()
+    return
+  }
   try {
+    const { save } = await import("@tauri-apps/plugin-dialog")
+    const { writeTextFile } = await import("@tauri-apps/plugin-fs")
     const filePath = await save({
       defaultPath: `doit-${reportType.value === "daily" ? "日报" : "周报"}-${dayjs().format("YYYYMMDD")}.md`,
       filters: [{ name: "Markdown", extensions: ["md"] }],
@@ -125,6 +130,10 @@ async function exportMarkdown() {
 }
 
 async function exportPDF() {
+  if (!isTauri) {
+    copyToClipboard()
+    return
+  }
   try {
     const doc = new jsPDF();
     const dateLabel =
@@ -182,6 +191,8 @@ async function exportPDF() {
     }
 
     const pdfBytes = doc.output("arraybuffer");
+    const { save } = await import("@tauri-apps/plugin-dialog")
+    const { writeFile } = await import("@tauri-apps/plugin-fs")
     const filePath = await save({
       defaultPath: `doit-${reportType.value === "daily" ? "日报" : "周报"}-${dayjs().format("YYYYMMDD")}.pdf`,
       filters: [{ name: "PDF", extensions: ["pdf"] }],

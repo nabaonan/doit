@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref, computed, watch } from "vue";
-import { Circle, CheckCircle2 } from "lucide-vue-next";
+import { ref, computed, watch, onMounted, onUnmounted } from "vue";
+import { Circle, CheckCircle2, Pencil, Trash2 } from "lucide-vue-next";
 import dayjs from "dayjs";
 import type { TodoItem, AppSettings } from "../types";
 
@@ -16,14 +16,19 @@ const emit = defineEmits<{
   (e: "start-edit"): void;
   (e: "save-edit", content: string): void;
   (e: "cancel-edit"): void;
+  (e: "delete-todo"): void;
 }>();
 
 const editInput = ref<HTMLInputElement | null>(null);
+const itemRef = ref<HTMLDivElement | null>(null);
 const localEditContent = ref(props.editContent);
 const isLongPressing = ref(false);
 const longPressProgress = ref(0);
-let longPressTimer: ReturnType<typeof setInterval> | null = null;
-let longPressStartTime: number | null = null;
+let longPressTimer: ReturnType<typeof setTimeout> | null = null;
+
+const showMenu = ref(false);
+const menuX = ref(0);
+const menuY = ref(0);
 
 watch(
   () => props.isEditing,
@@ -77,50 +82,90 @@ function onKeydown(e: KeyboardEvent) {
 
 function startLongPress() {
   if (props.settings.completionMode !== "longpress") return;
+  if (props.todo.completed) return;
   isLongPressing.value = true;
-  longPressProgress.value = 0;
-  longPressStartTime = Date.now();
   const durationMs = props.settings.longPressDuration * 1000;
 
-  longPressTimer = setInterval(() => {
-    if (!longPressStartTime) return;
-    const elapsed = Date.now() - longPressStartTime;
-    const progress = Math.min((elapsed / durationMs) * 100, 100);
-    longPressProgress.value = progress;
-    if (progress >= 100) {
-      stopLongPress();
-      emit("toggle-complete");
-    }
-  }, 30);
+  requestAnimationFrame(() => {
+    longPressProgress.value = 100;
+  });
+
+  longPressTimer = setTimeout(() => {
+    stopLongPress();
+    emit("toggle-complete");
+  }, durationMs);
 }
 
 function stopLongPress() {
+  if (!isLongPressing.value) return;
   isLongPressing.value = false;
   longPressProgress.value = 0;
-  longPressStartTime = null;
   if (longPressTimer) {
-    clearInterval(longPressTimer);
+    clearTimeout(longPressTimer);
     longPressTimer = null;
   }
 }
+
+function onContextMenu(e: MouseEvent) {
+  e.preventDefault();
+  showMenu.value = true;
+  menuX.value = e.clientX;
+  menuY.value = e.clientY;
+}
+
+function closeMenu() {
+  showMenu.value = false;
+}
+
+function onMenuEdit() {
+  closeMenu();
+  if (props.todo.completed) return;
+  emit("start-edit");
+}
+
+function onMenuDelete() {
+  closeMenu();
+  emit("delete-todo");
+}
+
+function onDocumentClick() {
+  closeMenu();
+}
+
+onMounted(() => {
+  document.addEventListener("click", onDocumentClick);
+});
+
+onUnmounted(() => {
+  document.removeEventListener("click", onDocumentClick);
+});
 </script>
 
 <template>
   <div
+    ref="itemRef"
     class="py-3 px-4 border-b border-[var(--border)] flex flex-col gap-1 cursor-pointer relative overflow-hidden select-none"
     :class="{ 'cursor-default': isEditing }"
     @dblclick="onDblClick"
     @mousedown="startLongPress"
     @mouseup="stopLongPress"
     @mouseleave="stopLongPress"
+    @contextmenu.prevent="onContextMenu"
   >
     <div
       v-if="settings.completionMode === 'longpress' && isLongPressing"
-      class="absolute bottom-0 left-0 h-[3px] bg-[var(--primary)] transition-[width] duration-30"
-      :style="{ width: longPressProgress + '%' }"
-    />
+      class="absolute inset-0 overflow-hidden"
+    >
+      <div
+        class="h-full bg-emerald-400/25"
+        :style="{
+          width: longPressProgress + '%',
+          transition: longPressProgress > 0 ? `width ${props.settings.longPressDuration}s linear` : 'none'
+        }"
+      />
+    </div>
 
-    <div v-if="isEditing" class="flex items-center gap-3">
+    <div v-if="isEditing" class="flex items-center gap-3 relative z-10">
       <input
         ref="editInput"
         v-model="localEditContent"
@@ -131,11 +176,12 @@ function stopLongPress() {
     </div>
 
     <template v-else>
-      <div class="flex items-center gap-3">
+      <div class="flex items-center gap-3 relative z-10">
         <button
           v-if="settings.completionMode === 'checkbox'"
           class="shrink-0 text-[var(--muted-foreground)] hover:text-[var(--primary)] transition-colors"
-          @click="onCheckboxClick"
+          @mousedown.stop
+          @click.stop="onCheckboxClick"
         >
           <CheckCircle2 v-if="todo.completed" :size="24" class="text-[var(--primary)]" />
           <Circle v-else :size="24" />
@@ -143,7 +189,7 @@ function stopLongPress() {
 
         <div class="flex-1 min-w-0">
           <p
-            class="text-xl"
+            class="text-xl truncate"
             :class="{
               'text-[var(--muted-foreground)] line-through': todo.completed,
               'text-[var(--foreground)]': !todo.completed,
@@ -152,14 +198,40 @@ function stopLongPress() {
             {{ todo.content }}
           </p>
         </div>
-      </div>
 
-      <p
-        v-if="todo.completed && durationText"
-        class="text-xs text-[var(--muted-foreground)] ml-9"
-      >
-        完成耗时: {{ durationText }}
-      </p>
+        <span
+          v-if="todo.completed && durationText"
+          class="shrink-0 text-xs text-[var(--muted-foreground)]"
+        >
+          {{ durationText }}
+        </span>
+      </div>
     </template>
+
+    <Teleport to="body">
+      <div
+        v-if="showMenu"
+        class="fixed z-[9999] bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg py-1 min-w-[120px]"
+        :style="{ left: menuX + 'px', top: menuY + 'px' }"
+        @click.stop
+      >
+        <button
+          class="w-full flex items-center gap-2 px-3 py-2 text-sm text-[var(--foreground)] hover:bg-[var(--accent)] transition-colors"
+          :class="{ 'opacity-50 cursor-not-allowed': todo.completed }"
+          :disabled="todo.completed"
+          @click="onMenuEdit"
+        >
+          <Pencil :size="14" />
+          编辑
+        </button>
+        <button
+          class="w-full flex items-center gap-2 px-3 py-2 text-sm text-[var(--destructive)] hover:bg-[var(--accent)] transition-colors"
+          @click="onMenuDelete"
+        >
+          <Trash2 :size="14" />
+          删除
+        </button>
+      </div>
+    </Teleport>
   </div>
 </template>
