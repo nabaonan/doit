@@ -1,0 +1,49 @@
+{
+  "$schema": "https://raw.githubusercontent.com/nicedoc/tauri/main/packages/tauri-config-schema/schema.json",
+  "productName": "Doit",
+  "version": "0.1.0",
+  "identifier": "com.nabaonan.doit",
+  "build": {
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:1420",
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build"
+  },
+  "app": {
+    "title": "Doit",
+    "windows": [
+      {
+        "title": "Doit",
+        "width": 450,
+        "height": 700,
+        "minWidth": 320,
+        "minHeight": 400,
+        "resizable": true,
+        "decorations": true,
+        "center": true
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "windows": {
+      "nsis": {
+        "languages": ["SimpChinese", "English"]
+      }
+    },
+    "macOS": {
+      "minimumSystemVersion": "10.15"
+    }
+  }
+}
