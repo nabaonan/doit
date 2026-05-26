@@ -1,5 +1,28 @@
 # Changelog
 
+## v0.1.2 (2026-05-26)
+
+### Bug 修复
+
+- 提交lock (`e0df2d4` by @内小子)
+
+### 文档更新
+
+- 更新 Changelog for v0.1.1 (`697905e` by @github-actions[bot])
+
+### 构建/工具
+
+- release v0.1.2 (`4177597` by @内小子)
+- add release and fix build:dmg script format (`a37c607` by @内小子)
+- 升级依赖并替换lucide-vue-next为@lucide/vue (`a694d5c` by @内小子)
+
+### 其他变更
+
+- Merge branch 'main' of github.com:nabaonan/doit (`730d0ef` by @内小子)
+
+---
+
+
 ## v0.1.1 (2026-05-26)
 
 ### 新功能
