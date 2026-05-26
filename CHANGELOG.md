@@ -1,5 +1,23 @@
 # Changelog
 
+## v0.1.3 (2026-05-26)
+
+### 文档更新
+
+- 更新 Changelog for v0.1.2 (`bbdbaad` by @github-actions[bot])
+
+### 构建/工具
+
+- release v0.1.3 (`af56eeb` by @内小子)
+- 发布v0.1.2版本，同步版本号并完善配置 (`1b9b870` by @内小子)
+
+### 其他变更
+
+- Merge branch 'main' of github.com:nabaonan/doit (`5831f4d` by @内小子)
+
+---
+
+
 ## v0.1.2 (2026-05-26)
 
 ### Bug 修复
