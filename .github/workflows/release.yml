@@ -57,51 +57,7 @@ jobs:
 
       - name: Generate release notes
         id: release-notes
-        shell: bash
-        run: |
-          PREV_TAG=$(git tag --sort=-v:refname | grep -v "^${GITHUB_REF_NAME}$" | head -1)
-
-          if [ -n "$PREV_TAG" ]; then
-            COMMITS=$(git log "${PREV_TAG}..${GITHUB_REF_NAME}" --pretty=format:"%s")
-          else
-            COMMITS=$(git log --pretty=format:"%s")
-          fi
-
-          FEAT=""
-          FIX=""
-          OTHER=""
-
-          if [ -n "$COMMITS" ]; then
-            while IFS= read -r line; do
-              if echo "$line" | grep -qiE "^(feat|feature)(\\(.+\\))?: "; then
-                MSG=$(echo "$line" | sed -E 's/^(feat|feature)(\\(.+\\))?: //I')
-                FEAT="${FEAT}- ${MSG}"$'\n'
-              elif echo "$line" | grep -qiE "^(fix|bugfix)(\\(.+\\))?: "; then
-                MSG=$(echo "$line" | sed -E 's/^(fix|bugfix)(\\(.+\\))?: //I')
-                FIX="${FIX}- ${MSG}"$'\n'
-              else
-                OTHER="${OTHER}- ${line}"$'\n'
-              fi
-            done <<< "$COMMITS"
-          fi
-
-          BODY=""
-          if [ -n "$FEAT" ]; then
-            BODY="${BODY}## 🚀 新特性"$'\n'$'\n'"${FEAT}"$'\n'
-          fi
-          if [ -n "$FIX" ]; then
-            BODY="${BODY}## 🐛 缺陷修复"$'\n'$'\n'"${FIX}"$'\n'
-          fi
-          if [ -n "$OTHER" ]; then
-            BODY="${BODY}## 📋 其他变更"$'\n'$'\n'"${OTHER}"
-          fi
-
-          DELIM="RELNOTES_$(date +%s)"
-          {
-            echo "body<<${DELIM}"
-            printf '%s\n' "${BODY}"
-            echo "${DELIM}"
-          } >> "$GITHUB_OUTPUT"
+        run: node scripts/generate-release-notes.mjs
 
       - name: Build Tauri
         uses: tauri-apps/tauri-action@v0
