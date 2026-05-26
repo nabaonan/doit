@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
-import { X, Copy, FileDown, FileText } from "lucide-vue-next";
+import { X, Copy, FileDown, FileText } from "@lucide/vue";
 import dayjs from "dayjs";
 import isoWeek from "dayjs/plugin/isoWeek";
-import jsPDF from "jspdf";
+import { jsPDF } from "jspdf";
 import type { TodoItem } from "../types";
 import { isTauri } from "../services/tauriEnv";
 

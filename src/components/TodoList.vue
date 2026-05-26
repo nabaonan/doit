@@ -19,7 +19,6 @@ const emit = defineEmits<{
 }>();
 
 const newTodoInput = ref("");
-const inputRef = ref<HTMLInputElement | null>(null);
 const editingId = ref<string | null>(null);
 const editContent = ref("");
 const isDragging = ref(false);
@@ -146,7 +145,6 @@ function onSetTag(id: string, tagId: string | null) {
   <div class="flex-1 overflow-y-auto flex flex-col">
     <div class="px-4 pt-4 pb-2">
       <input
-        ref="inputRef"
         v-model="newTodoInput"
         type="text"
         class="w-full bg-transparent text-xl text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] outline-none py-2"

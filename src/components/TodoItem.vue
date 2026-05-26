@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from "vue";
-import { Circle, CheckCircle2, Pencil, Trash2, Tag } from "lucide-vue-next";
+import { Circle, CheckCircle2, Pencil, Trash2, Tag } from "@lucide/vue";
 import dayjs from "dayjs";
 import type { TodoItem as TodoItemType, AppSettings } from "../types";
 
@@ -21,7 +21,6 @@ const emit = defineEmits<{
 }>();
 
 const editInput = ref<HTMLInputElement | null>(null);
-const itemRef = ref<HTMLDivElement | null>(null);
 const localEditContent = ref(props.editContent);
 const isLongPressing = ref(false);
 const longPressProgress = ref(0);
@@ -160,7 +159,6 @@ onUnmounted(() => {
 
 <template>
   <div
-    ref="itemRef"
     class="py-3 px-4 border-b border-[var(--border)] cursor-pointer relative overflow-hidden select-none"
     :class="{ 'cursor-default': isEditing }"
     @dblclick="onDblClick"

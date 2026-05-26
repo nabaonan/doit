@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from "vue";
-import { X, Keyboard, Sun, Moon, Monitor, Plus, Trash2 } from "lucide-vue-next";
+import { X, Keyboard, Sun, Moon, Monitor, Plus, Trash2 } from "@lucide/vue";
 import {
   SwitchRoot,
   SwitchThumb,

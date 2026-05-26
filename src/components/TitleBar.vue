@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { FileText, Settings } from "lucide-vue-next";
+import { FileText, Settings } from "@lucide/vue";
 
 defineEmits<{
   (e: "open-settings"): void;
