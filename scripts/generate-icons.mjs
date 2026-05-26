@@ -98,11 +98,47 @@ async function run() {
   }
 
   console.log('Generating icon.ico...')
-  const icoBuffer = await sharp(svgBuffer)
-    .resize(256, 256)
-    .png()
-    .toBuffer()
-  writeFileSync(resolve(iconsDir, 'icon.ico'), icoBuffer)
+  const icoSizes = [16, 32, 48, 64, 128, 256]
+  const pngBuffers = await Promise.all(
+    icoSizes.map((size) =>
+      sharp(svgBuffer).resize(size, size).png().toBuffer()
+    )
+  )
+
+  const imageCount = icoSizes.length
+  const headerSize = 6
+  const dirEntrySize = 16
+  const dirSize = imageCount * dirEntrySize
+
+  const imageOffsets = []
+  let offset = headerSize + dirSize
+  for (let i = 0; i < imageCount; i++) {
+    imageOffsets.push(offset)
+    offset += pngBuffers[i].length
+  }
+
+  const header = Buffer.alloc(headerSize)
+  header.writeUInt16LE(0, 0)
+  header.writeUInt16LE(1, 2)
+  header.writeUInt16LE(imageCount, 4)
+
+  const dir = Buffer.alloc(dirSize)
+  for (let i = 0; i < imageCount; i++) {
+    const pos = i * dirEntrySize
+    const w = icoSizes[i] >= 256 ? 0 : icoSizes[i]
+    const h = icoSizes[i] >= 256 ? 0 : icoSizes[i]
+    dir.writeUInt8(w, pos)
+    dir.writeUInt8(h, pos + 1)
+    dir.writeUInt8(0, pos + 2)
+    dir.writeUInt8(0, pos + 3)
+    dir.writeUInt16LE(1, pos + 4)
+    dir.writeUInt16LE(32, pos + 6)
+    dir.writeUInt32LE(pngBuffers[i].length, pos + 8)
+    dir.writeUInt32LE(imageOffsets[i], pos + 12)
+  }
+
+  const icoFile = Buffer.concat([header, dir, ...pngBuffers])
+  writeFileSync(resolve(iconsDir, 'icon.ico'), icoFile)
 
   console.log('Cleaning up iconset...')
   rmSync(iconsetDir, { recursive: true })
