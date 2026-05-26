@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "build:dmg": "PATH=\"/opt/homebrew/opt/rustup/bin:$HOME/.cargo/bin:$PATH\" tauri build --bundles dmg --ci",
-    "release": "npm version patch -m \"chore: release v%s\" && git push --follow-tags"
+    "version": "node scripts/sync-version.mjs",
+    "release": "npm version patch -m \"chore: release v%s\" && npm run version && git push --follow-tags"
   },
   "dependencies": {
     "@lucide/vue": "^1.16.0",
