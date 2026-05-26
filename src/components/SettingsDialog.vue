@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from "vue";
+import { ref, computed, onMounted, onUnmounted } from "vue";
 import { X, Keyboard, Sun, Moon, Monitor } from "lucide-vue-next";
 import {
   SwitchRoot,
@@ -50,7 +50,7 @@ function startRecording() {
   recordingShortcut.value = true;
 }
 
-function onRecordKeydown(e: KeyboardEvent) {
+function handleRecordKeydown(e: KeyboardEvent) {
   if (!recordingShortcut.value) return;
   e.preventDefault();
   e.stopPropagation();
@@ -72,6 +72,14 @@ function onRecordKeydown(e: KeyboardEvent) {
   recordingShortcut.value = false;
 }
 
+onMounted(() => {
+  document.addEventListener("keydown", handleRecordKeydown);
+});
+
+onUnmounted(() => {
+  document.removeEventListener("keydown", handleRecordKeydown);
+});
+
 function onSave() {
   emit("save", JSON.parse(JSON.stringify(localSettings.value)));
 }
@@ -81,7 +89,6 @@ function onSave() {
   <div
     class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center"
     @click.self="$emit('close')"
-    @keydown="onRecordKeydown"
   >
     <div
       class="bg-[var(--card)] rounded-xl shadow-2xl w-[400px] max-h-[80vh] overflow-y-auto p-6 text-[var(--foreground)]"

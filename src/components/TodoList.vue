@@ -156,10 +156,11 @@ function onToggleComplete(id: string) {
         item-key="id"
         :animation="200"
         ghost-class="opacity-50"
-      filter=".completed-item"
-      @start="onDragStart"
-      @end="onDragEnd"
-    >
+        :force-fallback="true"
+        filter=".completed-item"
+        @start="onDragStart"
+        @end="onDragEnd"
+      >
       <template #item="{ element }">
         <div :class="{ 'completed-item': element.completed }" :data-todo-id="element.id">
           <TodoItem
