@@ -8,7 +8,7 @@
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
-    "build:dmg": "tauri build --bundles dmg --ci"
+    "build:dmg": "PATH=\"/opt/homebrew/opt/rustup/bin:$HOME/.cargo/bin:$PATH\" tauri build --bundles dmg --ci"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.0.0",
