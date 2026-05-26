@@ -16,6 +16,7 @@ const defaultSettings: AppSettings = {
     alt: false,
     meta: false,
   },
+  tags: [],
   cloudSync: {
     enabled: false,
     provider: "webdav",
@@ -80,6 +81,9 @@ export async function getSettings(): Promise<AppSettings> {
       addTodoShortcut: kv["addTodoShortcut"]
         ? JSON.parse(kv["addTodoShortcut"])
         : { ...defaultSettings.addTodoShortcut },
+      tags: kv["tags"]
+        ? JSON.parse(kv["tags"])
+        : [...defaultSettings.tags],
       cloudSync: kv["cloudSync"]
         ? JSON.parse(kv["cloudSync"])
         : { ...defaultSettings.cloudSync },
@@ -110,6 +114,10 @@ export async function saveSettings(settings: AppSettings): Promise<void> {
     await (db as { execute: (sql: string, params: unknown[]) => Promise<void> }).execute("INSERT INTO settings (key, value) VALUES ($1, $2)", [
       "addTodoShortcut",
       JSON.stringify(settings.addTodoShortcut),
+    ])
+    await (db as { execute: (sql: string, params: unknown[]) => Promise<void> }).execute("INSERT INTO settings (key, value) VALUES ($1, $2)", [
+      "tags",
+      JSON.stringify(settings.tags),
     ])
     await (db as { execute: (sql: string, params: unknown[]) => Promise<void> }).execute("INSERT INTO settings (key, value) VALUES ($1, $2)", [
       "cloudSync",

@@ -15,7 +15,8 @@ async function loadDB() {
       completed INTEGER NOT NULL DEFAULT 0,
       created_at TEXT NOT NULL,
       completed_at TEXT,
-      sort_order INTEGER NOT NULL DEFAULT 0
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      tag_id TEXT
     )`
   )
 }
@@ -60,6 +61,7 @@ export async function getAllTodos(): Promise<TodoItem[]> {
       created_at: string
       completed_at: string | null
       sort_order: number
+      tag_id: string | null
     }>>("SELECT * FROM todos ORDER BY completed ASC, sort_order ASC")
     return rows.map((row) => ({
       id: row.id,
@@ -68,6 +70,7 @@ export async function getAllTodos(): Promise<TodoItem[]> {
       createdAt: row.created_at,
       completedAt: row.completed_at,
       order: row.sort_order,
+      tagId: row.tag_id,
     }))
   }
   return sortTodos(getLocalTodos())
@@ -77,8 +80,8 @@ export async function addTodo(item: TodoItem): Promise<void> {
   if (isTauri) {
     if (!db) await loadDB()
     await (db as { execute: (sql: string, params: unknown[]) => Promise<void> }).execute(
-      "INSERT INTO todos (id, content, completed, created_at, completed_at, sort_order) VALUES ($1, $2, $3, $4, $5, $6)",
-      [item.id, item.content, item.completed ? 1 : 0, item.createdAt, item.completedAt, item.order]
+      "INSERT INTO todos (id, content, completed, created_at, completed_at, sort_order, tag_id) VALUES ($1, $2, $3, $4, $5, $6, $7)",
+      [item.id, item.content, item.completed ? 1 : 0, item.createdAt, item.completedAt, item.order, item.tagId]
     )
     return
   }
@@ -113,6 +116,10 @@ export async function updateTodo(id: string, data: Partial<TodoItem>): Promise<v
     if (data.order !== undefined) {
       setClauses.push(`sort_order = $${params.length + 1}`)
       params.push(data.order)
+    }
+    if (data.tagId !== undefined) {
+      setClauses.push(`tag_id = $${params.length + 1}`)
+      params.push(data.tagId)
     }
 
     if (setClauses.length === 0) return

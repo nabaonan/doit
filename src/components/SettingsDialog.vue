@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from "vue";
-import { X, Keyboard, Sun, Moon, Monitor } from "lucide-vue-next";
+import { X, Keyboard, Sun, Moon, Monitor, Plus, Trash2 } from "lucide-vue-next";
 import {
   SwitchRoot,
   SwitchThumb,
@@ -12,7 +12,7 @@ import {
   RadioGroupItem,
   RadioGroupIndicator,
 } from "radix-vue";
-import type { AppSettings } from "../types";
+import type { AppSettings, Tag } from "../types";
 
 const props = defineProps<{
   settings: AppSettings;
@@ -25,6 +25,33 @@ const emit = defineEmits<{
 
 const localSettings = ref<AppSettings>(JSON.parse(JSON.stringify(props.settings)));
 const recordingShortcut = ref(false);
+const newTagName = ref("");
+const newTagColor = ref("#3B82F6");
+
+const presetColors = [
+  "#EF4444", "#F97316", "#F59E0B", "#EAB308", "#84CC16",
+  "#22C55E", "#10B981", "#14B8A6", "#06B6D4", "#3B82F6",
+  "#6366F1", "#8B5CF6", "#A855F7", "#D946EF", "#EC4899",
+  "#6B7280",
+];
+
+function addTag() {
+  const name = newTagName.value.trim();
+  if (!name) return;
+  if (!localSettings.value.tags) localSettings.value.tags = [];
+  const tag: Tag = {
+    id: crypto.randomUUID(),
+    name,
+    color: newTagColor.value,
+  };
+  localSettings.value.tags.push(tag);
+  newTagName.value = "";
+}
+
+function removeTag(id: string) {
+  if (!localSettings.value.tags) return;
+  localSettings.value.tags = localSettings.value.tags.filter((t) => t.id !== id);
+}
 
 const sliderValue = computed({
   get: () => [localSettings.value.longPressDuration],
@@ -173,6 +200,60 @@ function onSave() {
             {{ shortcutDisplay }}
           </kbd>
         </button>
+      </div>
+
+      <div class="mb-6">
+        <h3 class="text-sm font-medium text-[var(--muted-foreground)] mb-3">自定义标签</h3>
+        <div class="flex gap-2 mb-3">
+          <input
+            v-model="newTagName"
+            type="text"
+            placeholder="标签名称"
+            class="flex-1 bg-[var(--secondary)] rounded-lg px-3 py-2 text-[var(--foreground)] text-sm outline-none focus:ring-2 focus:ring-[var(--ring)]"
+            @keydown.enter="addTag"
+          />
+          <button
+            class="bg-[var(--primary)] text-[var(--primary-foreground)] px-3 py-2 rounded-lg text-sm transition-colors hover:opacity-90 shrink-0"
+            @click="addTag"
+          >
+            <Plus :size="16" />
+          </button>
+        </div>
+        <div class="flex flex-wrap gap-2 mb-3">
+          <button
+            v-for="c in presetColors"
+            :key="c"
+            class="w-7 h-7 rounded-full border-2 shrink-0 transition-transform hover:scale-110"
+            :class="newTagColor === c ? 'border-[var(--foreground)] scale-110' : 'border-transparent'"
+            :style="{ backgroundColor: c }"
+            @click="newTagColor = c"
+          />
+        </div>
+        <div class="flex flex-col gap-1.5">
+          <div
+            v-for="tag in localSettings.tags"
+            :key="tag.id"
+            class="flex items-center gap-2 bg-[var(--secondary)] rounded-lg px-3 py-2"
+          >
+            <span
+              class="inline-block w-3 h-3 rounded-full shrink-0"
+              :style="{ backgroundColor: tag.color }"
+            />
+            <span class="flex-1 text-sm truncate">{{ tag.name }}</span>
+            <button
+              class="p-0.5 rounded text-[var(--muted-foreground)] hover:text-[var(--destructive)] transition-colors"
+              @click="removeTag(tag.id)"
+            >
+              <Trash2 :size="14" />
+            </button>
+          </div>
+          <div
+            v-if="!localSettings.tags || localSettings.tags.length === 0"
+            class="text-xs text-[var(--muted-foreground)] py-2"
+          >
+            暂无标签，请添加一个
+          </div>
+        </div>
       </div>
 
       <div class="mb-6">

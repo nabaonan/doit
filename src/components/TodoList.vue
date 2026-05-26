@@ -15,6 +15,7 @@ const emit = defineEmits<{
   (e: "toggle-complete", id: string): void;
   (e: "reorder", ids: string[]): void;
   (e: "delete-todo", id: string): void;
+  (e: "set-tag", id: string, tagId: string | null): void;
 }>();
 
 const newTodoInput = ref("");
@@ -135,6 +136,10 @@ function cancelEdit() {
 function onToggleComplete(id: string) {
   emit("toggle-complete", id);
 }
+
+function onSetTag(id: string, tagId: string | null) {
+  emit("set-tag", id, tagId);
+}
 </script>
 
 <template>
@@ -174,6 +179,7 @@ function onToggleComplete(id: string) {
             @save-edit="(content: string) => saveEdit(content)"
             @cancel-edit="cancelEdit"
             @delete-todo="emit('delete-todo', element.id)"
+            @set-tag="(tagId: string | null) => onSetTag(element.id, tagId)"
           />
         </div>
       </template>

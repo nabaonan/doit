@@ -20,6 +20,7 @@ const settings = ref<AppSettings>({
     alt: false,
     meta: false,
   },
+  tags: [],
   cloudSync: {
     enabled: false,
     provider: "local_folder",
@@ -85,6 +86,7 @@ async function handleAddTodo(content: string) {
     createdAt: new Date().toISOString(),
     completedAt: null,
     order: todos.value.length,
+    tagId: null,
   };
   await addTodo(newTodo);
   todos.value = await getAllTodos();
@@ -92,6 +94,11 @@ async function handleAddTodo(content: string) {
 
 async function handleUpdateTodo(id: string, content: string) {
   await updateTodo(id, { content });
+  todos.value = await getAllTodos();
+}
+
+async function handleSetTag(id: string, tagId: string | null) {
+  await updateTodo(id, { tagId });
   todos.value = await getAllTodos();
 }
 
@@ -133,6 +140,7 @@ async function handleSaveSettings(newSettings: AppSettings) {
       @toggle-complete="handleToggleComplete"
       @reorder="handleReorder"
       @delete-todo="handleDeleteTodo"
+      @set-tag="handleSetTag"
     />
     <SettingsDialog
       v-if="showSettings"

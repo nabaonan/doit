@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from "vue";
-import { Circle, CheckCircle2, Pencil, Trash2 } from "lucide-vue-next";
+import { Circle, CheckCircle2, Pencil, Trash2, Tag } from "lucide-vue-next";
 import dayjs from "dayjs";
-import type { TodoItem, AppSettings } from "../types";
+import type { TodoItem as TodoItemType, AppSettings } from "../types";
 
 const props = defineProps<{
-  todo: TodoItem;
+  todo: TodoItemType;
   settings: AppSettings;
   isEditing: boolean;
   editContent: string;
@@ -17,6 +17,7 @@ const emit = defineEmits<{
   (e: "save-edit", content: string): void;
   (e: "cancel-edit"): void;
   (e: "delete-todo"): void;
+  (e: "set-tag", tagId: string | null): void;
 }>();
 
 const editInput = ref<HTMLInputElement | null>(null);
@@ -29,6 +30,12 @@ let longPressTimer: ReturnType<typeof setTimeout> | null = null;
 const showMenu = ref(false);
 const menuX = ref(0);
 const menuY = ref(0);
+const showTagMenu = ref(false);
+
+const currentTag = computed(() => {
+  if (!props.todo.tagId) return null;
+  return (props.settings.tags || []).find((t) => t.id === props.todo.tagId) || null;
+});
 
 watch(
   () => props.isEditing,
@@ -115,6 +122,7 @@ function onContextMenu(e: MouseEvent) {
 
 function closeMenu() {
   showMenu.value = false;
+  showTagMenu.value = false;
 }
 
 function onMenuEdit() {
@@ -126,6 +134,15 @@ function onMenuEdit() {
 function onMenuDelete() {
   closeMenu();
   emit("delete-todo");
+}
+
+function onMenuTag() {
+  showTagMenu.value = !showTagMenu.value;
+}
+
+function onSelectTag(tagId: string | null) {
+  emit("set-tag", tagId);
+  closeMenu();
 }
 
 function onDocumentClick() {
@@ -144,7 +161,7 @@ onUnmounted(() => {
 <template>
   <div
     ref="itemRef"
-    class="py-3 px-4 border-b border-[var(--border)] flex flex-col gap-1 cursor-pointer relative overflow-hidden select-none"
+    class="py-3 px-4 border-b border-[var(--border)] cursor-pointer relative overflow-hidden select-none"
     :class="{ 'cursor-default': isEditing }"
     @dblclick="onDblClick"
     @mousedown="startLongPress"
@@ -200,6 +217,14 @@ onUnmounted(() => {
         </div>
 
         <span
+          v-if="currentTag"
+          class="shrink-0 text-xs px-2 py-0.5 rounded font-medium truncate max-w-[80px]"
+          :style="{ backgroundColor: currentTag.color, color: '#fff' }"
+        >
+          {{ currentTag.name }}
+        </span>
+
+        <span
           v-if="todo.completed && durationText"
           class="shrink-0 text-xs text-[var(--muted-foreground)]"
         >
@@ -224,6 +249,39 @@ onUnmounted(() => {
           <Pencil :size="14" />
           编辑
         </button>
+        <div class="relative">
+          <button
+            class="w-full flex items-center gap-2 px-3 py-2 text-sm text-[var(--foreground)] hover:bg-[var(--accent)] transition-colors"
+            @click="onMenuTag"
+          >
+            <Tag :size="14" />
+            设置标签
+          </button>
+          <div
+            v-if="showTagMenu"
+            class="absolute left-full top-0 ml-1 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg py-1 min-w-[140px]"
+          >
+            <button
+              class="w-full flex items-center gap-2 px-3 py-2 text-sm text-[var(--muted-foreground)] hover:bg-[var(--accent)] transition-colors"
+              @click="onSelectTag(null)"
+            >
+              <span class="inline-block w-2.5 h-2.5 rounded-full border border-[var(--border)] shrink-0" />
+              无标签
+            </button>
+            <button
+              v-for="tag in settings.tags"
+              :key="tag.id"
+              class="w-full flex items-center gap-2 px-3 py-2 text-sm text-[var(--foreground)] hover:bg-[var(--accent)] transition-colors"
+              @click="onSelectTag(tag.id)"
+            >
+              <span
+                class="inline-block w-2.5 h-2.5 rounded-full shrink-0"
+                :style="{ backgroundColor: tag.color }"
+              />
+              {{ tag.name }}
+            </button>
+          </div>
+        </div>
         <button
           class="w-full flex items-center gap-2 px-3 py-2 text-sm text-[var(--destructive)] hover:bg-[var(--accent)] transition-colors"
           @click="onMenuDelete"
