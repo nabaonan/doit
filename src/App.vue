@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, provide } from "vue";
+import { ref, onMounted, onUnmounted, watch, provide } from "vue";
 import TitleBar from "./components/TitleBar.vue";
 import TodoList from "./components/TodoList.vue";
 import SettingsDialog from "./components/SettingsDialog.vue";
@@ -12,6 +12,14 @@ const todos = ref<TodoItem[]>([]);
 const settings = ref<AppSettings>({
   completionMode: "longpress",
   longPressDuration: 3,
+  theme: "system",
+  addTodoShortcut: {
+    key: "Enter",
+    ctrl: false,
+    shift: false,
+    alt: false,
+    meta: false,
+  },
   cloudSync: {
     enabled: false,
     provider: "local_folder",
@@ -26,11 +34,47 @@ const showReport = ref(false);
 
 provide("settings", settings);
 
+function applyTheme(theme: "system" | "light" | "dark") {
+  const root = document.documentElement;
+  if (theme === "dark") {
+    root.classList.add("dark");
+  } else if (theme === "light") {
+    root.classList.remove("dark");
+  } else {
+    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    root.classList.toggle("dark", prefersDark);
+  }
+}
+
+let systemThemeQuery: MediaQueryList | null = null;
+
+function watchSystemTheme() {
+  systemThemeQuery = window.matchMedia("(prefers-color-scheme: dark)");
+  const handler = () => {
+    if (settings.value.theme === "system") {
+      document.documentElement.classList.toggle("dark", systemThemeQuery!.matches);
+    }
+  };
+  systemThemeQuery.addEventListener("change", handler);
+}
+
 onMounted(async () => {
   await initTodos();
   await initSettings();
   todos.value = await getAllTodos();
   settings.value = await getSettings();
+  applyTheme(settings.value.theme);
+  watchSystemTheme();
+});
+
+onUnmounted(() => {
+  if (systemThemeQuery) {
+    systemThemeQuery.removeEventListener("change", () => {});
+  }
+});
+
+watch(() => settings.value.theme, (newTheme) => {
+  applyTheme(newTheme);
 });
 
 async function handleAddTodo(content: string) {

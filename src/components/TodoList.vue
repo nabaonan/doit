@@ -92,6 +92,24 @@ function onAddTodo() {
   emit("add-todo", trimmed);
 }
 
+function onInputKeydown(e: KeyboardEvent) {
+  const sc = props.settings.addTodoShortcut;
+  if (!sc) {
+    if (e.key === "Enter") onAddTodo();
+    return;
+  }
+  if (
+    e.key === sc.key &&
+    e.ctrlKey === sc.ctrl &&
+    e.shiftKey === sc.shift &&
+    e.altKey === sc.alt &&
+    e.metaKey === sc.meta
+  ) {
+    e.preventDefault();
+    onAddTodo();
+  }
+}
+
 function startEdit(todo: TodoItemType) {
   editingId.value = todo.id;
   editContent.value = todo.content;
@@ -127,8 +145,8 @@ function onToggleComplete(id: string) {
         v-model="newTodoInput"
         type="text"
         class="w-full bg-transparent text-xl text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] outline-none py-2"
-        placeholder="输入新待办事项... 按回车新增"
-        @keydown.enter="onAddTodo"
+        placeholder="输入新待办事项..."
+        @keydown="onInputKeydown"
       />
     </div>
 
