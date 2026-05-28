@@ -39,7 +39,7 @@ jobs:
           version: latest
 
       - name: Install frontend dependencies
-        run: pnpm install --ignore-scripts=false
+        run: pnpm install --ignore-scripts=false --ignore-pnpmfile
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
