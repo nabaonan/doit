@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
-import { X, Copy, FileDown, FileText } from "@lucide/vue";
+import { CopyOutlined, DownloadOutlined, FileTextOutlined } from "@antdv-next/icons";
 import dayjs from "dayjs";
 import isoWeek from "dayjs/plugin/isoWeek";
 import { jsPDF } from "jspdf";
@@ -10,11 +10,12 @@ import { isTauri } from "../services/tauriEnv";
 dayjs.extend(isoWeek);
 
 const props = defineProps<{
+  open: boolean;
   todos: TodoItem[];
 }>();
 
 const emit = defineEmits<{
-  (e: "close"): void;
+  (e: "update:open", open: boolean): void;
 }>();
 
 const reportType = ref<"daily" | "weekly">("daily");
@@ -113,12 +114,12 @@ async function copyToClipboard() {
 
 async function exportMarkdown() {
   if (!isTauri) {
-    copyToClipboard()
-    return
+    copyToClipboard();
+    return;
   }
   try {
-    const { save } = await import("@tauri-apps/plugin-dialog")
-    const { writeTextFile } = await import("@tauri-apps/plugin-fs")
+    const { save } = await import("@tauri-apps/plugin-dialog");
+    const { writeTextFile } = await import("@tauri-apps/plugin-fs");
     const filePath = await save({
       defaultPath: `doit-${reportType.value === "daily" ? "日报" : "周报"}-${dayjs().format("YYYYMMDD")}.md`,
       filters: [{ name: "Markdown", extensions: ["md"] }],
@@ -131,8 +132,8 @@ async function exportMarkdown() {
 
 async function exportPDF() {
   if (!isTauri) {
-    copyToClipboard()
-    return
+    copyToClipboard();
+    return;
   }
   try {
     const doc = new jsPDF();
@@ -191,8 +192,8 @@ async function exportPDF() {
     }
 
     const pdfBytes = doc.output("arraybuffer");
-    const { save } = await import("@tauri-apps/plugin-dialog")
-    const { writeFile } = await import("@tauri-apps/plugin-fs")
+    const { save } = await import("@tauri-apps/plugin-dialog");
+    const { writeFile } = await import("@tauri-apps/plugin-fs");
     const filePath = await save({
       defaultPath: `doit-${reportType.value === "daily" ? "日报" : "周报"}-${dayjs().format("YYYYMMDD")}.pdf`,
       filters: [{ name: "PDF", extensions: ["pdf"] }],
@@ -203,95 +204,60 @@ async function exportPDF() {
   }
 }
 
+function onCancel() {
+  emit("update:open", false);
+}
 </script>
 
 <template>
-  <div
-    class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center"
-    @click.self="emit('close')"
+  <a-modal
+    :open="props.open"
+    title="报告"
+    :footer="null"
+    :width="500"
+    @cancel="onCancel"
+    centered
+    destroyOnHidden
   >
-    <div
-      class="bg-[var(--card)] rounded-xl shadow-2xl w-[480px] max-h-[80vh] overflow-y-auto p-6 text-[var(--foreground)]"
-    >
-      <div class="flex items-center justify-between mb-4">
-        <h2 class="text-lg font-semibold">报告</h2>
-        <button
-          class="p-1 rounded-md hover:bg-[var(--accent)] text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors"
-          @click="emit('close')"
-        >
-          <X :size="18" />
-        </button>
-      </div>
+    <a-segmented
+      v-model:value="reportType"
+      :options="[
+        { label: '日报', value: 'daily' },
+        { label: '周报', value: 'weekly' },
+      ]"
+      block
+      class="mb-4"
+    />
 
-      <div class="flex bg-[var(--secondary)] rounded-lg p-1 mb-4">
-        <button
-          class="flex-1 py-1.5 rounded-md text-sm font-medium transition-colors"
-          :class="
-            reportType === 'daily'
-              ? 'bg-[var(--primary)] text-[var(--primary-foreground)]'
-              : 'text-[var(--muted-foreground)] hover:text-[var(--foreground)]'
-          "
-          @click="reportType = 'daily'"
-        >
-          日报
-        </button>
-        <button
-          class="flex-1 py-1.5 rounded-md text-sm font-medium transition-colors"
-          :class="
-            reportType === 'weekly'
-              ? 'bg-[var(--primary)] text-[var(--primary-foreground)]'
-              : 'text-[var(--muted-foreground)] hover:text-[var(--foreground)]'
-          "
-          @click="reportType = 'weekly'"
-        >
-          周报
-        </button>
-      </div>
-
-      <div class="flex items-center gap-4 mb-4 text-sm">
-        <span class="text-[var(--muted-foreground)]">
-          {{ reportType === "daily" ? "今日" : "本周" }}
-        </span>
-        <span class="font-medium">
-          已完成 {{ completionRate.done }} / {{ completionRate.total }}（{{ completionRate.pct }}%）
-        </span>
-      </div>
-
-      <div
-        class="bg-[var(--secondary)] rounded-lg p-4 mb-4 max-h-[300px] overflow-y-auto"
-      >
-        <pre class="text-sm text-[var(--foreground)] whitespace-pre-wrap font-mono leading-relaxed">{{ reportText }}</pre>
-      </div>
-
-      <div class="flex flex-wrap gap-2">
-        <button
-          class="flex items-center gap-1.5 bg-[var(--secondary)] text-[var(--foreground)] px-3 py-2 rounded-lg text-sm transition-colors hover:bg-[var(--accent)]"
-          @click="copyToClipboard"
-        >
-          <Copy :size="14" />
-          复制到剪贴板
-        </button>
-        <button
-          class="flex items-center gap-1.5 bg-[var(--secondary)] text-[var(--foreground)] px-3 py-2 rounded-lg text-sm transition-colors hover:bg-[var(--accent)]"
-          @click="exportMarkdown"
-        >
-          <FileDown :size="14" />
-          导出 Markdown
-        </button>
-        <button
-          class="flex items-center gap-1.5 bg-[var(--secondary)] text-[var(--foreground)] px-3 py-2 rounded-lg text-sm transition-colors hover:bg-[var(--accent)]"
-          @click="exportPDF"
-        >
-          <FileText :size="14" />
-          导出 PDF
-        </button>
-        <button
-          class="flex items-center gap-1.5 bg-[var(--secondary)] text-[var(--foreground)] px-3 py-2 rounded-lg text-sm transition-colors hover:bg-[var(--accent)] ml-auto"
-          @click="emit('close')"
-        >
-          关闭
-        </button>
-      </div>
+    <div class="flex items-center gap-4 mb-4 text-sm">
+      <span class="text-[var(--muted-foreground)]">
+        {{ reportType === "daily" ? "今日" : "本周" }}
+      </span>
+      <span class="font-medium">
+        已完成 {{ completionRate.done }} / {{ completionRate.total }}（{{ completionRate.pct }}%）
+      </span>
     </div>
-  </div>
+
+    <div
+      class="bg-[var(--secondary)] rounded-lg p-4 mb-4 max-h-[300px] overflow-y-auto"
+    >
+      <pre class="text-sm text-[var(--foreground)] whitespace-pre-wrap font-mono leading-relaxed">{{ reportText }}</pre>
+    </div>
+
+    <div class="flex flex-wrap gap-2">
+      <a-button @click="copyToClipboard">
+        <template #icon><CopyOutlined /></template>
+        复制到剪贴板
+      </a-button>
+      <a-button @click="exportMarkdown">
+        <template #icon><DownloadOutlined /></template>
+        导出 Markdown
+      </a-button>
+      <a-button @click="exportPDF">
+        <template #icon><FileTextOutlined /></template>
+        导出 PDF
+      </a-button>
+      <a-button class="ml-auto" @click="onCancel">关闭</a-button>
+    </div>
+  </a-modal>
 </template>

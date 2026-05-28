@@ -1,10 +1,18 @@
 <script setup lang="ts">
-import { FileText, Settings } from "@lucide/vue";
+import { FileTextOutlined, SettingOutlined } from "@antdv-next/icons";
 
-defineEmits<{
+const emit = defineEmits<{
   (e: "open-settings"): void;
   (e: "open-report"): void;
 }>();
+
+function handleOpenReport() {
+  emit("open-report");
+}
+
+function handleOpenSettings() {
+  emit("open-settings");
+}
 </script>
 
 <template>
@@ -13,20 +21,24 @@ defineEmits<{
   >
     <h1 class="text-lg font-semibold text-[var(--foreground)]">Doit</h1>
     <div class="flex items-center gap-2">
-      <button
-        class="p-1.5 rounded-md hover:bg-[var(--accent)] text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors"
-        @click="$emit('open-report')"
+      <a-button
+        type="text"
+        size="small"
+        shape="circle"
+        @click="handleOpenReport"
         title="报告"
       >
-        <FileText :size="18" />
-      </button>
-      <button
-        class="p-1.5 rounded-md hover:bg-[var(--accent)] text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors"
-        @click="$emit('open-settings')"
+        <FileTextOutlined />
+      </a-button>
+      <a-button
+        type="text"
+        size="small"
+        shape="circle"
+        @click="handleOpenSettings"
         title="设置"
       >
-        <Settings :size="18" />
-      </button>
+        <SettingOutlined />
+      </a-button>
     </div>
   </header>
 </template>

@@ -1,25 +1,15 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from "vue";
-import { X, Keyboard, Sun, Moon, Monitor, Plus, Trash2 } from "@lucide/vue";
-import {
-  SwitchRoot,
-  SwitchThumb,
-  SliderRoot,
-  SliderTrack,
-  SliderRange,
-  SliderThumb,
-  RadioGroupRoot,
-  RadioGroupItem,
-  RadioGroupIndicator,
-} from "radix-vue";
+import { ref, computed, onMounted, onUnmounted, watch } from "vue";
+import { KeyOutlined, SunOutlined, MoonOutlined, MonitorOutlined } from "@antdv-next/icons";
 import type { AppSettings, Tag } from "../types";
 
 const props = defineProps<{
+  open: boolean;
   settings: AppSettings;
 }>();
 
 const emit = defineEmits<{
-  (e: "close"): void;
+  (e: "update:open", open: boolean): void;
   (e: "save", settings: AppSettings): void;
 }>();
 
@@ -34,6 +24,19 @@ const presetColors = [
   "#6366F1", "#8B5CF6", "#A855F7", "#D946EF", "#EC4899",
   "#6B7280",
 ];
+
+const providerOptions = [
+  { value: "local_folder", label: "本地文件夹" },
+  { value: "webdav", label: "WebDAV" },
+];
+
+watch(() => props.open, (val) => {
+  if (val) {
+    localSettings.value = JSON.parse(JSON.stringify(props.settings));
+    newTagName.value = "";
+    newTagColor.value = "#3B82F6";
+  }
+});
 
 function addTag() {
   const name = newTagName.value.trim();
@@ -52,13 +55,6 @@ function removeTag(id: string) {
   if (!localSettings.value.tags) return;
   localSettings.value.tags = localSettings.value.tags.filter((t) => t.id !== id);
 }
-
-const sliderValue = computed({
-  get: () => [localSettings.value.longPressDuration],
-  set: (val: number[]) => {
-    localSettings.value.longPressDuration = val[0];
-  },
-});
 
 const shortcutDisplay = computed(() => {
   const sc = localSettings.value.addTodoShortcut;
@@ -109,298 +105,183 @@ onUnmounted(() => {
 
 function onSave() {
   emit("save", JSON.parse(JSON.stringify(localSettings.value)));
+  emit("update:open", false);
+}
+
+function onCancel() {
+  emit("update:open", false);
 }
 </script>
 
 <template>
-  <div
-    class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center"
-    @click.self="$emit('close')"
+  <a-modal
+    :open="props.open"
+    title="设置"
+    :footer="null"
+    :width="420"
+    @cancel="onCancel"
+    centered
+    destroyOnHidden
   >
-    <div
-      class="bg-[var(--card)] rounded-xl shadow-2xl w-[400px] max-h-[80vh] overflow-y-auto p-6 text-[var(--foreground)]"
-    >
-      <div class="flex items-center justify-between mb-6">
-        <h2 class="text-lg font-semibold">设置</h2>
+    <div class="mb-6">
+      <h3 class="text-sm font-medium text-[var(--muted-foreground)] mb-3">主题模式</h3>
+      <a-radio-group v-model:value="localSettings.theme" class="flex flex-col gap-2">
+        <a-radio value="system">
+          <MonitorOutlined class="mr-1" :style="{ fontSize: '14px' }" />
+          跟随系统
+        </a-radio>
+        <a-radio value="light">
+          <SunOutlined class="mr-1" :style="{ fontSize: '14px' }" />
+          浅色模式
+        </a-radio>
+        <a-radio value="dark">
+          <MoonOutlined class="mr-1" :style="{ fontSize: '14px' }" />
+          深色模式
+        </a-radio>
+      </a-radio-group>
+    </div>
+
+    <div class="mb-6">
+      <h3 class="text-sm font-medium text-[var(--muted-foreground)] mb-3">添加快捷键</h3>
+      <a-button
+        block
+        class="flex items-center justify-between"
+        :class="recordingShortcut ? 'border-[var(--primary)]' : ''"
+        @click="startRecording"
+      >
+        <span class="flex items-center gap-2">
+          <KeyOutlined :style="{ fontSize: '14px', color: 'var(--muted-foreground)' }" />
+          <span v-if="recordingShortcut" class="text-[var(--primary)]">请按下组合键...</span>
+          <span v-else class="text-[var(--muted-foreground)]">新增待办快捷键</span>
+        </span>
+        <a-tag>{{ shortcutDisplay }}</a-tag>
+      </a-button>
+    </div>
+
+    <div class="mb-6">
+      <h3 class="text-sm font-medium text-[var(--muted-foreground)] mb-3">自定义标签</h3>
+      <div class="flex gap-2 mb-3">
+        <div
+          class="w-8 h-8 rounded-md border border-[var(--border)] cursor-pointer shrink-0 transition-shadow hover:shadow-md"
+          :style="{ backgroundColor: newTagColor }"
+        />
+        <a-input
+          v-model:value="newTagName"
+          placeholder="输入标签名称，回车添加"
+          size="middle"
+          @pressEnter="addTag"
+          class="flex-1"
+        />
+      </div>
+      <div class="flex flex-wrap gap-1.5 mb-3">
         <button
-          class="p-1 rounded-md hover:bg-[var(--accent)] text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors"
-          @click="$emit('close')"
-        >
-          <X :size="18" />
-        </button>
+          v-for="c in presetColors"
+          :key="c"
+          class="w-6 h-6 rounded-full border-2 shrink-0 cursor-pointer transition-all hover:scale-125"
+          :class="newTagColor === c ? 'border-white ring-2 ring-offset-1 ring-[var(--ring)]' : 'border-transparent'"
+          :style="{ backgroundColor: c }"
+          @click="newTagColor = c"
+        />
       </div>
-
-      <div class="mb-6">
-        <h3 class="text-sm font-medium text-[var(--muted-foreground)] mb-3">主题模式</h3>
-        <RadioGroupRoot
-          v-model="localSettings.theme"
-          class="flex flex-col gap-2"
+      <div v-if="localSettings.tags && localSettings.tags.length > 0" class="flex flex-wrap gap-2">
+        <a-tag
+          v-for="tag in localSettings.tags"
+          :key="tag.id"
+          :color="tag.color"
+          closable
+          @close="removeTag(tag.id)"
         >
-          <div class="flex items-center gap-2">
-            <RadioGroupItem
-              value="system"
-              :id="'theme-system'"
-              class="w-4 h-4 rounded-full border border-[var(--border)] bg-[var(--secondary)] data-[state=checked]:bg-[var(--primary)] data-[state=checked]:border-[var(--primary)] flex items-center justify-center"
-            >
-              <RadioGroupIndicator
-                class="w-2 h-2 rounded-full bg-[var(--primary-foreground)]"
-              />
-            </RadioGroupItem>
-            <label :for="'theme-system'" class="text-sm cursor-pointer flex items-center gap-1.5">
-              <Monitor :size="14" />
-              跟随系统
-            </label>
-          </div>
-          <div class="flex items-center gap-2">
-            <RadioGroupItem
-              value="light"
-              :id="'theme-light'"
-              class="w-4 h-4 rounded-full border border-[var(--border)] bg-[var(--secondary)] data-[state=checked]:bg-[var(--primary)] data-[state=checked]:border-[var(--primary)] flex items-center justify-center"
-            >
-              <RadioGroupIndicator
-                class="w-2 h-2 rounded-full bg-[var(--primary-foreground)]"
-              />
-            </RadioGroupItem>
-            <label :for="'theme-light'" class="text-sm cursor-pointer flex items-center gap-1.5">
-              <Sun :size="14" />
-              浅色模式
-            </label>
-          </div>
-          <div class="flex items-center gap-2">
-            <RadioGroupItem
-              value="dark"
-              :id="'theme-dark'"
-              class="w-4 h-4 rounded-full border border-[var(--border)] bg-[var(--secondary)] data-[state=checked]:bg-[var(--primary)] data-[state=checked]:border-[var(--primary)] flex items-center justify-center"
-            >
-              <RadioGroupIndicator
-                class="w-2 h-2 rounded-full bg-[var(--primary-foreground)]"
-              />
-            </RadioGroupItem>
-            <label :for="'theme-dark'" class="text-sm cursor-pointer flex items-center gap-1.5">
-              <Moon :size="14" />
-              深色模式
-            </label>
-          </div>
-        </RadioGroupRoot>
+          {{ tag.name }}
+        </a-tag>
       </div>
-
-      <div class="mb-6">
-        <h3 class="text-sm font-medium text-[var(--muted-foreground)] mb-3">添加快捷键</h3>
-        <button
-          class="w-full flex items-center justify-between bg-[var(--secondary)] hover:bg-[var(--accent)] rounded-lg px-3 py-2.5 text-sm transition-colors border-2"
-          :class="recordingShortcut ? 'border-[var(--primary)]' : 'border-transparent'"
-          @click="startRecording"
-        >
-          <span class="flex items-center gap-2">
-            <Keyboard :size="14" class="text-[var(--muted-foreground)]" />
-            <span v-if="recordingShortcut" class="text-[var(--primary)]">请按下组合键...</span>
-            <span v-else class="text-[var(--muted-foreground)]">新增待办快捷键</span>
-          </span>
-          <kbd class="bg-[var(--card)] px-2 py-0.5 rounded text-xs font-mono text-[var(--foreground)]">
-            {{ shortcutDisplay }}
-          </kbd>
-        </button>
-      </div>
-
-      <div class="mb-6">
-        <h3 class="text-sm font-medium text-[var(--muted-foreground)] mb-3">自定义标签</h3>
-        <div class="flex gap-2 mb-3">
-          <input
-            v-model="newTagName"
-            type="text"
-            placeholder="标签名称"
-            class="flex-1 bg-[var(--secondary)] rounded-lg px-3 py-2 text-[var(--foreground)] text-sm outline-none focus:ring-2 focus:ring-[var(--ring)]"
-            @keydown.enter="addTag"
-          />
-          <button
-            class="bg-[var(--primary)] text-[var(--primary-foreground)] px-3 py-2 rounded-lg text-sm transition-colors hover:opacity-90 shrink-0"
-            @click="addTag"
-          >
-            <Plus :size="16" />
-          </button>
-        </div>
-        <div class="flex flex-wrap gap-2 mb-3">
-          <button
-            v-for="c in presetColors"
-            :key="c"
-            class="w-7 h-7 rounded-full border-2 shrink-0 transition-transform hover:scale-110"
-            :class="newTagColor === c ? 'border-[var(--foreground)] scale-110' : 'border-transparent'"
-            :style="{ backgroundColor: c }"
-            @click="newTagColor = c"
-          />
-        </div>
-        <div class="flex flex-col gap-1.5">
-          <div
-            v-for="tag in localSettings.tags"
-            :key="tag.id"
-            class="flex items-center gap-2 bg-[var(--secondary)] rounded-lg px-3 py-2"
-          >
-            <span
-              class="inline-block w-3 h-3 rounded-full shrink-0"
-              :style="{ backgroundColor: tag.color }"
-            />
-            <span class="flex-1 text-sm truncate">{{ tag.name }}</span>
-            <button
-              class="p-0.5 rounded text-[var(--muted-foreground)] hover:text-[var(--destructive)] transition-colors"
-              @click="removeTag(tag.id)"
-            >
-              <Trash2 :size="14" />
-            </button>
-          </div>
-          <div
-            v-if="!localSettings.tags || localSettings.tags.length === 0"
-            class="text-xs text-[var(--muted-foreground)] py-2"
-          >
-            暂无标签，请添加一个
-          </div>
-        </div>
-      </div>
-
-      <div class="mb-6">
-        <h3 class="text-sm font-medium text-[var(--muted-foreground)] mb-3">完成方式</h3>
-        <RadioGroupRoot
-          v-model="localSettings.completionMode"
-          class="flex flex-col gap-2"
-        >
-          <div class="flex items-center gap-2">
-            <RadioGroupItem
-              value="checkbox"
-              :id="'completion-checkbox'"
-              class="w-4 h-4 rounded-full border border-[var(--border)] bg-[var(--secondary)] data-[state=checked]:bg-[var(--primary)] data-[state=checked]:border-[var(--primary)] flex items-center justify-center"
-            >
-              <RadioGroupIndicator
-                class="w-2 h-2 rounded-full bg-[var(--primary-foreground)]"
-              />
-            </RadioGroupItem>
-            <label :for="'completion-checkbox'" class="text-sm cursor-pointer">勾选完成</label>
-          </div>
-          <div class="flex items-center gap-2">
-            <RadioGroupItem
-              value="longpress"
-              :id="'completion-longpress'"
-              class="w-4 h-4 rounded-full border border-[var(--border)] bg-[var(--secondary)] data-[state=checked]:bg-[var(--primary)] data-[state=checked]:border-[var(--primary)] flex items-center justify-center"
-            >
-              <RadioGroupIndicator
-                class="w-2 h-2 rounded-full bg-[var(--primary-foreground)]"
-              />
-            </RadioGroupItem>
-            <label :for="'completion-longpress'" class="text-sm cursor-pointer">长按完成</label>
-          </div>
-        </RadioGroupRoot>
-
-        <div v-if="localSettings.completionMode === 'longpress'" class="mt-4">
-          <div class="flex items-center justify-between mb-2">
-            <span class="text-xs text-[var(--muted-foreground)]">长按时长</span>
-            <span class="text-xs font-medium">{{ localSettings.longPressDuration }} 秒</span>
-          </div>
-          <SliderRoot
-            v-model="sliderValue"
-            :min="1"
-            :max="10"
-            :step="1"
-            class="relative flex items-center w-full h-5"
-          >
-            <SliderTrack class="relative w-full h-1.5 bg-[var(--secondary)] rounded-full">
-              <SliderRange class="absolute h-full bg-[var(--primary)] rounded-full" />
-            </SliderTrack>
-            <SliderThumb
-              class="block w-4 h-4 bg-[var(--primary)] rounded-full shadow cursor-pointer hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
-            />
-          </SliderRoot>
-        </div>
-      </div>
-
-      <div class="mb-6">
-        <h3 class="text-sm font-medium text-[var(--muted-foreground)] mb-3">云同步</h3>
-        <div class="flex items-center justify-between mb-3">
-          <span class="text-sm">启用云同步</span>
-          <SwitchRoot
-            v-model:checked="localSettings.cloudSync.enabled"
-            class="w-10 h-5 bg-[var(--secondary)] rounded-full relative data-[state=checked]:bg-[var(--primary)] transition-colors cursor-pointer"
-          >
-            <SwitchThumb
-              class="block w-4 h-4 bg-white rounded-full shadow transition-transform translate-x-0.5 data-[state=checked]:translate-x-[22px]"
-            />
-          </SwitchRoot>
-        </div>
-
-        <div v-if="localSettings.cloudSync.enabled" class="flex flex-col gap-3">
-          <div>
-            <label class="text-xs text-[var(--muted-foreground)] block mb-1.5">同步方式</label>
-            <select
-              v-model="localSettings.cloudSync.provider"
-              class="w-full bg-[var(--secondary)] rounded-lg px-3 py-2 text-[var(--foreground)] text-sm outline-none focus:ring-2 focus:ring-[var(--ring)]"
-            >
-              <option value="local_folder">本地文件夹</option>
-              <option value="webdav">WebDAV</option>
-            </select>
-          </div>
-
-          <template v-if="localSettings.cloudSync.provider === 'local_folder'">
-            <div>
-              <label class="text-xs text-[var(--muted-foreground)] block mb-1.5">同步路径</label>
-              <div class="flex gap-2">
-                <input
-                  v-model="localSettings.cloudSync.localSyncPath"
-                  type="text"
-                  placeholder="选择本地文件夹路径..."
-                  class="flex-1 bg-[var(--secondary)] rounded-lg px-3 py-2 text-[var(--foreground)] text-sm outline-none focus:ring-2 focus:ring-[var(--ring)]"
-                />
-                <button
-                  class="bg-[var(--secondary)] hover:bg-[var(--accent)] text-[var(--foreground)] px-3 py-2 rounded-lg text-sm transition-colors"
-                >
-                  浏览
-                </button>
-              </div>
-            </div>
-          </template>
-
-          <template v-else>
-            <div>
-              <label class="text-xs text-[var(--muted-foreground)] block mb-1.5">WebDAV URL</label>
-              <input
-                v-model="localSettings.cloudSync.webdavUrl"
-                type="text"
-                placeholder="https://example.com/webdav/"
-                class="w-full bg-[var(--secondary)] rounded-lg px-3 py-2 text-[var(--foreground)] text-sm outline-none focus:ring-2 focus:ring-[var(--ring)]"
-              />
-            </div>
-            <div>
-              <label class="text-xs text-[var(--muted-foreground)] block mb-1.5">用户名</label>
-              <input
-                v-model="localSettings.cloudSync.webdavUsername"
-                type="text"
-                placeholder="用户名"
-                class="w-full bg-[var(--secondary)] rounded-lg px-3 py-2 text-[var(--foreground)] text-sm outline-none focus:ring-2 focus:ring-[var(--ring)]"
-              />
-            </div>
-            <div>
-              <label class="text-xs text-[var(--muted-foreground)] block mb-1.5">密码</label>
-              <input
-                v-model="localSettings.cloudSync.webdavPassword"
-                type="password"
-                placeholder="密码"
-                class="w-full bg-[var(--secondary)] rounded-lg px-3 py-2 text-[var(--foreground)] text-sm outline-none focus:ring-2 focus:ring-[var(--ring)]"
-              />
-            </div>
-          </template>
-        </div>
-      </div>
-
-      <div class="flex justify-end gap-2 pt-2">
-        <button
-          class="bg-[var(--secondary)] text-[var(--foreground)] px-4 py-2 rounded-lg text-sm transition-colors hover:bg-[var(--accent)]"
-          @click="$emit('close')"
-        >
-          取消
-        </button>
-        <button
-          class="bg-[var(--primary)] text-[var(--primary-foreground)] px-4 py-2 rounded-lg text-sm transition-colors hover:opacity-90"
-          @click="onSave"
-        >
-          保存
-        </button>
+      <div
+        v-if="!localSettings.tags || localSettings.tags.length === 0"
+        class="text-xs text-[var(--muted-foreground)] py-2"
+      >
+        暂无标签，请输入名称并回车添加
       </div>
     </div>
-  </div>
+
+    <div class="mb-6">
+      <h3 class="text-sm font-medium text-[var(--muted-foreground)] mb-3">完成方式</h3>
+      <a-radio-group v-model:value="localSettings.completionMode" class="flex flex-col gap-2">
+        <a-radio value="checkbox">勾选完成</a-radio>
+        <a-radio value="longpress">长按完成</a-radio>
+      </a-radio-group>
+
+      <div v-if="localSettings.completionMode === 'longpress'" class="mt-4">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-xs text-[var(--muted-foreground)]">长按时长</span>
+          <span class="text-xs font-medium">{{ localSettings.longPressDuration }} 秒</span>
+        </div>
+        <a-slider
+          v-model:value="localSettings.longPressDuration"
+          :min="1"
+          :max="10"
+          :step="1"
+        />
+      </div>
+    </div>
+
+    <div class="mb-6">
+      <h3 class="text-sm font-medium text-[var(--muted-foreground)] mb-3">云同步</h3>
+      <div class="flex items-center justify-between mb-3">
+        <span class="text-sm">启用云同步</span>
+        <a-switch v-model:checked="localSettings.cloudSync.enabled" />
+      </div>
+
+      <div v-if="localSettings.cloudSync.enabled" class="flex flex-col gap-3">
+        <div>
+          <label class="text-xs text-[var(--muted-foreground)] block mb-1.5">同步方式</label>
+          <a-select
+            v-model:value="localSettings.cloudSync.provider"
+            :options="providerOptions"
+            class="w-full"
+          />
+        </div>
+
+        <template v-if="localSettings.cloudSync.provider === 'local_folder'">
+          <div>
+            <label class="text-xs text-[var(--muted-foreground)] block mb-1.5">同步路径</label>
+            <div class="flex gap-2">
+              <a-input
+                v-model:value="localSettings.cloudSync.localSyncPath"
+                placeholder="选择本地文件夹路径..."
+              />
+              <a-button>浏览</a-button>
+            </div>
+          </div>
+        </template>
+
+        <template v-else>
+          <div>
+            <label class="text-xs text-[var(--muted-foreground)] block mb-1.5">WebDAV URL</label>
+            <a-input
+              v-model:value="localSettings.cloudSync.webdavUrl"
+              placeholder="https://example.com/webdav/"
+            />
+          </div>
+          <div>
+            <label class="text-xs text-[var(--muted-foreground)] block mb-1.5">用户名</label>
+            <a-input
+              v-model:value="localSettings.cloudSync.webdavUsername"
+              placeholder="用户名"
+            />
+          </div>
+          <div>
+            <label class="text-xs text-[var(--muted-foreground)] block mb-1.5">密码</label>
+            <a-input-password
+              v-model:value="localSettings.cloudSync.webdavPassword"
+              placeholder="密码"
+            />
+          </div>
+        </template>
+      </div>
+    </div>
+
+    <div class="flex justify-end gap-2 pt-2">
+      <a-button @click="onCancel">取消</a-button>
+      <a-button type="primary" @click="onSave">保存</a-button>
+    </div>
+  </a-modal>
 </template>

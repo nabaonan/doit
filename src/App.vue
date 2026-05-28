@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch, provide } from "vue";
+import { theme as antTheme } from "antdv-next";
 import TitleBar from "./components/TitleBar.vue";
 import TodoList from "./components/TodoList.vue";
 import SettingsDialog from "./components/SettingsDialog.vue";
@@ -35,15 +36,20 @@ const showReport = ref(false);
 
 provide("settings", settings);
 
+const currentAlgorithm = ref(antTheme.defaultAlgorithm);
+
 function applyTheme(theme: "system" | "light" | "dark") {
   const root = document.documentElement;
   if (theme === "dark") {
     root.classList.add("dark");
+    currentAlgorithm.value = antTheme.darkAlgorithm;
   } else if (theme === "light") {
     root.classList.remove("dark");
+    currentAlgorithm.value = antTheme.defaultAlgorithm;
   } else {
     const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
     root.classList.toggle("dark", prefersDark);
+    currentAlgorithm.value = prefersDark ? antTheme.darkAlgorithm : antTheme.defaultAlgorithm;
   }
 }
 
@@ -53,7 +59,9 @@ function watchSystemTheme() {
   systemThemeQuery = window.matchMedia("(prefers-color-scheme: dark)");
   const handler = () => {
     if (settings.value.theme === "system") {
-      document.documentElement.classList.toggle("dark", systemThemeQuery!.matches);
+      const prefersDark = systemThemeQuery!.matches;
+      document.documentElement.classList.toggle("dark", prefersDark);
+      currentAlgorithm.value = prefersDark ? antTheme.darkAlgorithm : antTheme.defaultAlgorithm;
     }
   };
   systemThemeQuery.addEventListener("change", handler);
@@ -130,28 +138,30 @@ async function handleSaveSettings(newSettings: AppSettings) {
 </script>
 
 <template>
-  <div class="flex flex-col h-full bg-[var(--background)]">
-    <TitleBar @open-settings="showSettings = true" @open-report="showReport = true" />
-    <TodoList
-      :todos="todos"
-      :settings="settings"
-      @add-todo="handleAddTodo"
-      @update-todo="handleUpdateTodo"
-      @toggle-complete="handleToggleComplete"
-      @reorder="handleReorder"
-      @delete-todo="handleDeleteTodo"
-      @set-tag="handleSetTag"
-    />
-    <SettingsDialog
-      v-if="showSettings"
-      :settings="settings"
-      @save="handleSaveSettings"
-      @close="showSettings = false"
-    />
-    <ReportDialog
-      v-if="showReport"
-      :todos="todos"
-      @close="showReport = false"
-    />
-  </div>
+  <a-config-provider :theme="{ algorithm: currentAlgorithm }">
+    <a-app>
+      <div class="flex flex-col h-full bg-[var(--background)]">
+        <TitleBar @open-settings="showSettings = true" @open-report="showReport = true" />
+        <TodoList
+          :todos="todos"
+          :settings="settings"
+          @add-todo="handleAddTodo"
+          @update-todo="handleUpdateTodo"
+          @toggle-complete="handleToggleComplete"
+          @reorder="handleReorder"
+          @delete-todo="handleDeleteTodo"
+          @set-tag="handleSetTag"
+        />
+        <SettingsDialog
+          v-model:open="showSettings"
+          :settings="settings"
+          @save="handleSaveSettings"
+        />
+        <ReportDialog
+          v-model:open="showReport"
+          :todos="todos"
+        />
+      </div>
+    </a-app>
+  </a-config-provider>
 </template>

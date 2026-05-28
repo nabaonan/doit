@@ -144,10 +144,11 @@ function onSetTag(id: string, tagId: string | null) {
 <template>
   <div class="flex-1 overflow-y-auto flex flex-col">
     <div class="px-4 pt-4 pb-2">
-      <input
-        v-model="newTodoInput"
-        type="text"
-        class="w-full bg-transparent text-xl text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] outline-none py-2"
+      <a-input
+        v-model:value="newTodoInput"
+        variant="borderless"
+        size="large"
+        class="text-xl"
         placeholder="输入新待办事项..."
         @keydown="onInputKeydown"
       />
@@ -184,11 +185,10 @@ function onSetTag(id: string, tagId: string | null) {
     </draggable>
     </div>
 
-    <div
+    <a-empty
       v-if="todos.length === 0"
-      class="flex-1 flex items-center justify-center text-[var(--muted-foreground)] text-sm"
-    >
-      暂无待办事项
-    </div>
+      description="暂无待办事项"
+      class="flex-1 flex items-center justify-center"
+    />
   </div>
 </template>

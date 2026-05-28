@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted } from "vue";
-import { Circle, CheckCircle2, Pencil, Trash2, Tag } from "@lucide/vue";
+import { ref, computed, watch, h } from "vue";
+import { EditOutlined, DeleteOutlined, TagOutlined } from "@antdv-next/icons";
+import type { MenuItemType } from "antdv-next";
 import dayjs from "dayjs";
 import type { TodoItem as TodoItemType, AppSettings } from "../types";
 
@@ -26,16 +27,6 @@ const isLongPressing = ref(false);
 const longPressProgress = ref(0);
 let longPressTimer: ReturnType<typeof setTimeout> | null = null;
 
-const showMenu = ref(false);
-const menuX = ref(0);
-const menuY = ref(0);
-const showTagMenu = ref(false);
-
-const currentTag = computed(() => {
-  if (!props.todo.tagId) return null;
-  return (props.settings.tags || []).find((t) => t.id === props.todo.tagId) || null;
-});
-
 watch(
   () => props.isEditing,
   (val) => {
@@ -45,6 +36,11 @@ watch(
     }
   }
 );
+
+const currentTag = computed(() => {
+  if (!props.todo.tagId) return null;
+  return (props.settings.tags || []).find((t) => t.id === props.todo.tagId) || null;
+});
 
 const durationText = computed(() => {
   if (!props.todo.completed || !props.todo.completedAt) return "";
@@ -59,6 +55,64 @@ const durationText = computed(() => {
   const days = end.diff(start, "day");
   return `${days} 天`;
 });
+
+const tagMenuChildren = computed(() => {
+  const items: MenuItemType[] = [
+    {
+      key: "tag-null",
+      label: "无标签",
+      icon: h("span", {
+        class: "inline-block w-2.5 h-2.5 rounded-full border border-[var(--border)] shrink-0",
+      }),
+    },
+  ];
+  for (const tag of (props.settings.tags || [])) {
+    items.push({
+      key: `tag-${tag.id}`,
+      label: tag.name,
+      icon: h("span", {
+        class: "inline-block w-2.5 h-2.5 rounded-full shrink-0",
+        style: { backgroundColor: tag.color },
+      }),
+    });
+  }
+  return items;
+});
+
+const menuItems = computed<MenuItemType[]>(() => [
+  {
+    key: "edit",
+    label: "编辑",
+    icon: h(EditOutlined),
+    disabled: props.todo.completed,
+  },
+  {
+    key: "tag",
+    label: "设置标签",
+    icon: h(TagOutlined),
+    children: tagMenuChildren.value,
+  },
+  { type: "divider" },
+  {
+    key: "delete",
+    label: "删除",
+    icon: h(DeleteOutlined),
+    danger: true,
+  },
+]);
+
+function onMenuClick({ key }: { key: string }) {
+  if (key === "edit") {
+    if (props.todo.completed) return;
+    emit("start-edit");
+  } else if (key === "delete") {
+    emit("delete-todo");
+  } else if (key === "tag-null") {
+    emit("set-tag", null);
+  } else if (key.startsWith("tag-")) {
+    emit("set-tag", key.replace("tag-", ""));
+  }
+}
 
 function onCheckboxClick() {
   emit("toggle-complete");
@@ -111,183 +165,84 @@ function stopLongPress() {
     longPressTimer = null;
   }
 }
-
-function onContextMenu(e: MouseEvent) {
-  e.preventDefault();
-  showMenu.value = true;
-  menuX.value = e.clientX;
-  menuY.value = e.clientY;
-}
-
-function closeMenu() {
-  showMenu.value = false;
-  showTagMenu.value = false;
-}
-
-function onMenuEdit() {
-  closeMenu();
-  if (props.todo.completed) return;
-  emit("start-edit");
-}
-
-function onMenuDelete() {
-  closeMenu();
-  emit("delete-todo");
-}
-
-function onMenuTag() {
-  showTagMenu.value = !showTagMenu.value;
-}
-
-function onSelectTag(tagId: string | null) {
-  emit("set-tag", tagId);
-  closeMenu();
-}
-
-function onDocumentClick() {
-  closeMenu();
-}
-
-onMounted(() => {
-  document.addEventListener("click", onDocumentClick);
-});
-
-onUnmounted(() => {
-  document.removeEventListener("click", onDocumentClick);
-});
 </script>
 
 <template>
-  <div
-    class="py-3 px-4 border-b border-[var(--border)] cursor-pointer relative overflow-hidden select-none"
-    :class="{ 'cursor-default': isEditing }"
-    @dblclick="onDblClick"
-    @mousedown="startLongPress"
-    @mouseup="stopLongPress"
-    @mouseleave="stopLongPress"
-    @contextmenu.prevent="onContextMenu"
+  <a-dropdown
+    :menu="{ items: menuItems, onClick: onMenuClick }"
+    :trigger="['contextmenu']"
   >
     <div
-      v-if="settings.completionMode === 'longpress' && isLongPressing"
-      class="absolute inset-0 overflow-hidden"
+      class="py-3 px-4 border-b border-[var(--border)] cursor-pointer relative overflow-hidden select-none"
+      :class="{ 'cursor-default': isEditing }"
+      @dblclick="onDblClick"
+      @mousedown="startLongPress"
+      @mouseup="stopLongPress"
+      @mouseleave="stopLongPress"
     >
       <div
-        class="h-full bg-emerald-400/25"
-        :style="{
-          width: longPressProgress + '%',
-          transition: longPressProgress > 0 ? `width ${props.settings.longPressDuration}s linear` : 'none'
-        }"
-      />
-    </div>
-
-    <div v-if="isEditing" class="flex items-center gap-3 relative z-10">
-      <input
-        ref="editInput"
-        v-model="localEditContent"
-        class="flex-1 bg-transparent text-xl text-[var(--foreground)] border-b-2 border-[var(--primary)] outline-none py-1"
-        @keydown="onKeydown"
-        @blur="onCancel"
-      />
-    </div>
-
-    <template v-else>
-      <div class="flex items-center gap-3 relative z-10">
-        <button
-          v-if="settings.completionMode === 'checkbox'"
-          class="shrink-0 text-[var(--muted-foreground)] hover:text-[var(--primary)] transition-colors"
-          @mousedown.stop
-          @click.stop="onCheckboxClick"
-        >
-          <CheckCircle2 v-if="todo.completed" :size="24" class="text-[var(--primary)]" />
-          <Circle v-else :size="24" />
-        </button>
-
-        <div class="flex-1 min-w-0">
-          <p
-            class="text-xl truncate"
-            :class="{
-              'text-[var(--muted-foreground)] line-through': todo.completed,
-              'text-[var(--foreground)]': !todo.completed,
-            }"
-          >
-            {{ todo.content }}
-          </p>
-        </div>
-
-        <span
-          v-if="currentTag"
-          class="shrink-0 text-xs px-2 py-0.5 rounded font-medium truncate max-w-[80px]"
-          :style="{ backgroundColor: currentTag.color, color: '#fff' }"
-        >
-          {{ currentTag.name }}
-        </span>
-
-        <span
-          v-if="todo.completed && durationText"
-          class="shrink-0 text-xs text-[var(--muted-foreground)]"
-        >
-          {{ durationText }}
-        </span>
-      </div>
-    </template>
-
-    <Teleport to="body">
-      <div
-        v-if="showMenu"
-        class="fixed z-[9999] bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg py-1 min-w-[120px]"
-        :style="{ left: menuX + 'px', top: menuY + 'px' }"
-        @click.stop
+        v-if="settings.completionMode === 'longpress' && isLongPressing"
+        class="absolute inset-0 overflow-hidden"
       >
-        <button
-          class="w-full flex items-center gap-2 px-3 py-2 text-sm text-[var(--foreground)] hover:bg-[var(--accent)] transition-colors"
-          :class="{ 'opacity-50 cursor-not-allowed': todo.completed }"
-          :disabled="todo.completed"
-          @click="onMenuEdit"
-        >
-          <Pencil :size="14" />
-          编辑
-        </button>
-        <div class="relative">
-          <button
-            class="w-full flex items-center gap-2 px-3 py-2 text-sm text-[var(--foreground)] hover:bg-[var(--accent)] transition-colors"
-            @click="onMenuTag"
-          >
-            <Tag :size="14" />
-            设置标签
-          </button>
-          <div
-            v-if="showTagMenu"
-            class="absolute left-full top-0 ml-1 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg py-1 min-w-[140px]"
-          >
-            <button
-              class="w-full flex items-center gap-2 px-3 py-2 text-sm text-[var(--muted-foreground)] hover:bg-[var(--accent)] transition-colors"
-              @click="onSelectTag(null)"
-            >
-              <span class="inline-block w-2.5 h-2.5 rounded-full border border-[var(--border)] shrink-0" />
-              无标签
-            </button>
-            <button
-              v-for="tag in settings.tags"
-              :key="tag.id"
-              class="w-full flex items-center gap-2 px-3 py-2 text-sm text-[var(--foreground)] hover:bg-[var(--accent)] transition-colors"
-              @click="onSelectTag(tag.id)"
-            >
-              <span
-                class="inline-block w-2.5 h-2.5 rounded-full shrink-0"
-                :style="{ backgroundColor: tag.color }"
-              />
-              {{ tag.name }}
-            </button>
-          </div>
-        </div>
-        <button
-          class="w-full flex items-center gap-2 px-3 py-2 text-sm text-[var(--destructive)] hover:bg-[var(--accent)] transition-colors"
-          @click="onMenuDelete"
-        >
-          <Trash2 :size="14" />
-          删除
-        </button>
+        <div
+          class="h-full bg-emerald-400/25"
+          :style="{
+            width: longPressProgress + '%',
+            transition: longPressProgress > 0 ? `width ${props.settings.longPressDuration}s linear` : 'none'
+          }"
+        />
       </div>
-    </Teleport>
-  </div>
+
+      <div v-if="isEditing" class="flex items-center gap-3 relative z-10">
+        <a-input
+          ref="editInput"
+          v-model:value="localEditContent"
+          variant="underlined"
+          size="large"
+          class="flex-1"
+          @keydown="onKeydown"
+          @blur="onCancel"
+        />
+      </div>
+
+      <template v-else>
+        <div class="flex items-center gap-3 relative z-10">
+          <a-checkbox
+            v-if="settings.completionMode === 'checkbox'"
+            :checked="todo.completed"
+            class="shrink-0"
+            @mousedown.stop
+            @click.stop="onCheckboxClick"
+          />
+
+          <div class="flex-1 min-w-0">
+            <p
+              class="text-xl truncate"
+              :class="{
+                'text-[var(--muted-foreground)] line-through': todo.completed,
+                'text-[var(--foreground)]': !todo.completed,
+              }"
+            >
+              {{ todo.content }}
+            </p>
+          </div>
+
+          <a-tag
+            v-if="currentTag"
+            :color="currentTag.color"
+            class="shrink-0 max-w-[80px] truncate"
+          >
+            {{ currentTag.name }}
+          </a-tag>
+
+          <span
+            v-if="todo.completed && durationText"
+            class="shrink-0 text-xs text-[var(--muted-foreground)]"
+          >
+            {{ durationText }}
+          </span>
+        </div>
+      </template>
+    </div>
+  </a-dropdown>
 </template>
