@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch } from "vue";
+import { ref, computed, onMounted, onUnmounted, watch, h } from "vue";
 import { KeyOutlined, SunOutlined, MoonOutlined, MonitorOutlined } from "@antdv-next/icons";
 import type { AppSettings, Tag } from "../types";
 
@@ -29,6 +29,18 @@ const providerOptions = [
   { value: "local_folder", label: "本地文件夹" },
   { value: "webdav", label: "WebDAV" },
 ];
+
+const colorPickerPresets = computed(() => [
+  {
+    label: "预设颜色",
+    colors: presetColors,
+    defaultOpen: true,
+  },
+]);
+
+function renderPresetsOnly({ extra }: { extra: { components: { Presets: any } } }) {
+  return h(extra.components.Presets);
+}
 
 watch(() => props.open, (val) => {
   if (val) {
@@ -161,10 +173,18 @@ function onCancel() {
     <div class="mb-6">
       <h3 class="text-sm font-medium text-[var(--muted-foreground)] mb-3">自定义标签</h3>
       <div class="flex gap-2 mb-3">
-        <div
-          class="w-8 h-8 rounded-md border border-[var(--border)] cursor-pointer shrink-0 transition-shadow hover:shadow-md"
-          :style="{ backgroundColor: newTagColor }"
-        />
+        <a-color-picker
+          v-model:value="newTagColor"
+          :presets="colorPickerPresets"
+          value-format="hex"
+          size="small"
+          :panelRender="renderPresetsOnly"
+        >
+          <div
+            class="w-8 h-8 rounded-md border border-[var(--border)] cursor-pointer shrink-0 transition-shadow hover:shadow-md"
+            :style="{ backgroundColor: newTagColor }"
+          />
+        </a-color-picker>
         <a-input
           v-model:value="newTagName"
           placeholder="输入标签名称，回车添加"
@@ -173,21 +193,12 @@ function onCancel() {
           class="flex-1"
         />
       </div>
-      <div class="flex flex-wrap gap-1.5 mb-3">
-        <button
-          v-for="c in presetColors"
-          :key="c"
-          class="w-6 h-6 rounded-full border-2 shrink-0 cursor-pointer transition-all hover:scale-125"
-          :class="newTagColor === c ? 'border-white ring-2 ring-offset-1 ring-[var(--ring)]' : 'border-transparent'"
-          :style="{ backgroundColor: c }"
-          @click="newTagColor = c"
-        />
-      </div>
       <div v-if="localSettings.tags && localSettings.tags.length > 0" class="flex flex-wrap gap-2">
         <a-tag
           v-for="tag in localSettings.tags"
           :key="tag.id"
           :color="tag.color"
+          variant="solid"
           closable
           @close="removeTag(tag.id)"
         >

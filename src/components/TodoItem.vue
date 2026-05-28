@@ -230,6 +230,7 @@ function stopLongPress() {
           <a-tag
             v-if="currentTag"
             :color="currentTag.color"
+            variant="solid"
             class="shrink-0 max-w-[80px] truncate"
           >
             {{ currentTag.name }}
