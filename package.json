@@ -10,7 +10,7 @@
     "tauri": "tauri",
     "build:dmg": "PATH=\"/opt/homebrew/opt/rustup/bin:$HOME/.cargo/bin:$PATH\" tauri build --bundles dmg --ci",
     "version": "node scripts/sync-version.mjs && git add src-tauri/tauri.conf.json src-tauri/Cargo.toml src-tauri/Cargo.lock",
-    "release": "npm version patch -m \"chore: release v%s\" && npm run version && git push --follow-tags"
+    "release": "npm version patch -m \"chore: release v%s\" && npm run version && git commit --amend --no-edit && git push --follow-tags"
   },
   "dependencies": {
     "@ant-design/happy-work-theme": "^2.0.0",
