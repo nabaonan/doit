@@ -26,6 +26,7 @@ export interface AppSettings {
   completionMode: "checkbox" | "longpress"
   longPressDuration: number
   theme: "system" | "light" | "dark"
+  happyMode: boolean
   addTodoShortcut: ShortcutConfig
   tags: Tag[]
   cloudSync: {

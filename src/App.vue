@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch, provide } from "vue";
 import { theme as antTheme } from "antdv-next";
+import { HappyProvider } from "@antdv-next/happy-work-theme";
 import TitleBar from "./components/TitleBar.vue";
 import TodoList from "./components/TodoList.vue";
 import SettingsDialog from "./components/SettingsDialog.vue";
@@ -14,6 +15,7 @@ const settings = ref<AppSettings>({
   completionMode: "longpress",
   longPressDuration: 3,
   theme: "system",
+  happyMode: false,
   addTodoShortcut: {
     key: "Enter",
     ctrl: false,
@@ -138,30 +140,32 @@ async function handleSaveSettings(newSettings: AppSettings) {
 </script>
 
 <template>
-  <a-config-provider :theme="{ algorithm: currentAlgorithm }">
-    <a-app>
-      <div class="flex flex-col h-full bg-[var(--background)]">
-        <TitleBar @open-settings="showSettings = true" @open-report="showReport = true" />
-        <TodoList
-          :todos="todos"
-          :settings="settings"
-          @add-todo="handleAddTodo"
-          @update-todo="handleUpdateTodo"
-          @toggle-complete="handleToggleComplete"
-          @reorder="handleReorder"
-          @delete-todo="handleDeleteTodo"
-          @set-tag="handleSetTag"
-        />
-        <SettingsDialog
-          v-model:open="showSettings"
-          :settings="settings"
-          @save="handleSaveSettings"
-        />
-        <ReportDialog
-          v-model:open="showReport"
-          :todos="todos"
-        />
-      </div>
-    </a-app>
-  </a-config-provider>
+  <HappyProvider :enabled="settings.happyMode" v-slot="{ wave }">
+    <a-config-provider :theme="{ algorithm: currentAlgorithm }" :wave="wave">
+      <a-app>
+        <div class="flex flex-col h-full bg-[var(--background)]">
+          <TitleBar @open-settings="showSettings = true" @open-report="showReport = true" />
+          <TodoList
+            :todos="todos"
+            :settings="settings"
+            @add-todo="handleAddTodo"
+            @update-todo="handleUpdateTodo"
+            @toggle-complete="handleToggleComplete"
+            @reorder="handleReorder"
+            @delete-todo="handleDeleteTodo"
+            @set-tag="handleSetTag"
+          />
+          <SettingsDialog
+            v-model:open="showSettings"
+            :settings="settings"
+            @save="handleSaveSettings"
+          />
+          <ReportDialog
+            v-model:open="showReport"
+            :todos="todos"
+          />
+        </div>
+      </a-app>
+    </a-config-provider>
+  </HappyProvider>
 </template>

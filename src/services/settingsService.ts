@@ -9,6 +9,7 @@ const defaultSettings: AppSettings = {
   completionMode: "checkbox",
   longPressDuration: 3,
   theme: "system",
+  happyMode: false,
   addTodoShortcut: {
     key: "Enter",
     ctrl: false,
@@ -78,6 +79,7 @@ export async function getSettings(): Promise<AppSettings> {
       completionMode: (kv["completionMode"] as "checkbox" | "longpress") || "checkbox",
       longPressDuration: kv["longPressDuration"] ? Number(kv["longPressDuration"]) : 3,
       theme: (kv["theme"] as "system" | "light" | "dark") || "system",
+      happyMode: kv["happyMode"] === "true",
       addTodoShortcut: kv["addTodoShortcut"]
         ? JSON.parse(kv["addTodoShortcut"])
         : { ...defaultSettings.addTodoShortcut },
@@ -110,6 +112,10 @@ export async function saveSettings(settings: AppSettings): Promise<void> {
     await (db as { execute: (sql: string, params: unknown[]) => Promise<void> }).execute("INSERT INTO settings (key, value) VALUES ($1, $2)", [
       "theme",
       settings.theme,
+    ])
+    await (db as { execute: (sql: string, params: unknown[]) => Promise<void> }).execute("INSERT INTO settings (key, value) VALUES ($1, $2)", [
+      "happyMode",
+      String(settings.happyMode),
     ])
     await (db as { execute: (sql: string, params: unknown[]) => Promise<void> }).execute("INSERT INTO settings (key, value) VALUES ($1, $2)", [
       "addTodoShortcut",

@@ -13,12 +13,16 @@
     "release": "npm version patch -m \"chore: release v%s\" && npm run version && git push --follow-tags"
   },
   "dependencies": {
+    "@ant-design/happy-work-theme": "^2.0.0",
+    "@antdv-next/happy-work-theme": "^1.0.0",
     "@antdv-next/icons": "^1.0.8",
     "@tauri-apps/api": "^2.11.0",
     "@tauri-apps/plugin-dialog": "^2.7.1",
     "@tauri-apps/plugin-fs": "^2.5.1",
     "@tauri-apps/plugin-sql": "^2.4.0",
+    "@types/canvas-confetti": "^1.9.0",
     "antdv-next": "^1.3.1",
+    "canvas-confetti": "^1.9.4",
     "dayjs": "^1.11.21",
     "jspdf": "^4.2.1",
     "lightningcss": "^1.32.0",

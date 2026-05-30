@@ -154,6 +154,16 @@ function onCancel() {
     </div>
 
     <div class="mb-6">
+      <div class="flex items-center justify-between">
+        <h3 class="text-sm font-medium text-[var(--muted-foreground)]">快乐工作</h3>
+        <a-switch v-model:checked="localSettings.happyMode" />
+      </div>
+      <p class="text-xs text-[var(--muted-foreground)] mt-1">
+        开启后点击按钮、复选框等组件会有彩色圆点动画效果
+      </p>
+    </div>
+
+    <div class="mb-6">
       <h3 class="text-sm font-medium text-[var(--muted-foreground)] mb-3">添加快捷键</h3>
       <a-button
         block

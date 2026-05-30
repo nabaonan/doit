@@ -212,7 +212,7 @@ function stopLongPress() {
             :checked="todo.completed"
             class="shrink-0"
             @mousedown.stop
-            @click.stop="onCheckboxClick"
+            @change="onCheckboxClick"
           />
 
           <div class="flex-1 min-w-0">
