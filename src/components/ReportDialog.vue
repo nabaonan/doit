@@ -112,13 +112,30 @@ async function copyToClipboard() {
   }
 }
 
-const FONT_CDN = "/fonts/noto-sans-sc.ttf";
+const FONT_PATH = "fonts/noto-sans-sc.ttf";
+const FONT_URL = "/fonts/noto-sans-sc.ttf";
 
 let fontBase64: string | null = null;
 
+function uint8ArrayToBase64(bytes: Uint8Array): string {
+  let binary = "";
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+}
+
 async function loadCJKFont(): Promise<string> {
   if (fontBase64) return fontBase64;
-  const res = await fetch(FONT_CDN);
+
+  if (isTauri) {
+    const { readFile } = await import("@tauri-apps/plugin-fs");
+    const data = await readFile(FONT_PATH);
+    fontBase64 = uint8ArrayToBase64(data);
+    return fontBase64;
+  }
+
+  const res = await fetch(FONT_URL);
   const blob = await res.blob();
   fontBase64 = await new Promise<string>((resolve) => {
     const reader = new FileReader();
@@ -226,10 +243,10 @@ async function exportMarkdown() {
 
 async function exportPDF() {
   const filename = `doit-${reportType.value === "daily" ? "日报" : "周报"}-${dayjs().format("YYYYMMDD")}.pdf`;
-  const doc = await buildPDFDoc();
 
   if (isTauri) {
     try {
+      const doc = await buildPDFDoc();
       const pdfBytes = doc.output("arraybuffer");
       const { save } = await import("@tauri-apps/plugin-dialog");
       const { writeFile } = await import("@tauri-apps/plugin-fs");
@@ -245,7 +262,12 @@ async function exportPDF() {
     return;
   }
 
-  doc.save(filename);
+  try {
+    const doc = await buildPDFDoc();
+    doc.save(filename);
+  } catch (e) {
+    console.error(e);
+  }
 }
 
 function onCancel() {

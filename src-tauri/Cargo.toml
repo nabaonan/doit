@@ -9,6 +9,8 @@ edition = "2021"
 name = "doit_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
+[package.metadata]
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
