@@ -1,5 +1,22 @@
 # Changelog
 
+## v0.1.20 (2026-05-30)
+
+### Bug 修复
+
+- 修复导出问题 (`4f9daa6` by @内小子)
+
+### 文档更新
+
+- 更新 Changelog for v0.1.19 (`9abddec` by @github-actions[bot])
+
+### 构建/工具
+
+- release v0.1.20 (`d92e91d` by @内小子)
+
+---
+
+
 ## v0.1.19 (2026-05-30)
 
 ### 新功能
