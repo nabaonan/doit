@@ -11,14 +11,10 @@ function run(cmd) {
   execSync(cmd, { cwd: root, stdio: "inherit" })
 }
 
-run("npm version patch -m \"chore: release v%s\"")
-
-run("node scripts/sync-version.mjs")
-run("git add src-tauri/tauri.conf.json src-tauri/Cargo.toml src-tauri/Cargo.lock")
-
-run("git commit --amend --no-edit")
+run('npm version patch -m "chore: release v%s"')
 
 const pkg = JSON.parse(readFileSync(resolve(root, "package.json"), "utf-8"))
-run(`git tag -f "v${pkg.version}" HEAD`)
 
 run("git push origin HEAD --follow-tags")
+
+console.log(`Released v${pkg.version}`)
