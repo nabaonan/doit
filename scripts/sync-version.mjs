@@ -19,3 +19,13 @@ const updatedCargo = cargoContent.replace(/^version\s*=\s*".*"/m, `version = "${
 writeFileSync(cargoPath, updatedCargo)
 
 console.log(`Synced version ${version} to tauri.conf.json and Cargo.toml`)
+
+const lockPath = resolve(root, "src-tauri", "Cargo.lock")
+const lockContent = readFileSync(lockPath, "utf-8")
+const updatedLock = lockContent.replace(
+  /^name = "doit"\nversion = ".*"/m,
+  `name = "doit"\nversion = "${version}"`
+)
+writeFileSync(lockPath, updatedLock)
+
+console.log(`Synced version ${version} to Cargo.lock`)
