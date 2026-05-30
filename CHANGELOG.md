@@ -1,5 +1,23 @@
 # Changelog
 
+## v0.1.18 (2026-05-30)
+
+### 构建/工具
+
+- release v0.1.18 (`3a9a6c1` by @内小子)
+- 简化发布脚本流程 (`6c54f1c` by @内小子)
+- release v0.1.17 (`ac1955c` by @内小子)
+- 替换release脚本为独立的release.mjs (`14d4ca8` by @内小子)
+- release v0.1.16 (`182dcf6` by @内小子)
+- 修复release脚本的标签推送问题 (`bedfca6` by @内小子)
+- release v0.1.15 (`4173ba9` by @内小子)
+- 同步版本号到Cargo.lock文件 (`440cd39` by @内小子)
+- release v0.1.14 (`ee6ab38` by @内小子)
+- 更新依赖版本并修复发布流程 (`e98a985` by @内小子)
+
+---
+
+
 ## v0.1.12 (2026-05-28)
 
 ### 构建/工具
