@@ -11,6 +11,7 @@ import {
   Modal,
   Dropdown,
   Segmented,
+  DatePicker,
   Menu,
   ColorPicker,
   Checkbox,
@@ -27,7 +28,7 @@ import "./style.css";
 const vueApp = createApp(App);
 
 const components = [Button, Input, InputPassword, Switch, Slider, Radio, RadioGroup, Modal, Dropdown, Segmented,
-  Menu, ColorPicker, Checkbox, Tag, Select, SelectOption, ConfigProvider, AppProvider, Empty];
+  DatePicker, Menu, ColorPicker, Checkbox, Tag, Select, SelectOption, ConfigProvider, AppProvider, Empty];
 for (const comp of components) {
   vueApp.component((comp as any).name, comp);
 }

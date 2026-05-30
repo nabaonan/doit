@@ -161,12 +161,11 @@ function onSetTag(id: string, tagId: string | null) {
         :animation="200"
         ghost-class="opacity-50"
         :force-fallback="true"
-        filter=".completed-item"
         @start="onDragStart"
         @end="onDragEnd"
       >
       <template #item="{ element }">
-        <div :class="{ 'completed-item': element.completed }" :data-todo-id="element.id">
+        <div :data-todo-id="element.id">
           <TodoItem
             :key="element.id"
             :todo="element"

@@ -1,9 +1,12 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch, provide } from "vue";
+import { ref, computed, onMounted, onUnmounted, watch, provide } from "vue";
 import { theme as antTheme } from "antdv-next";
+import zhCN from "antdv-next/locale/zh_CN";
 import { HappyProvider } from "@antdv-next/happy-work-theme";
+import dayjs from "dayjs";
 import TitleBar from "./components/TitleBar.vue";
 import TodoList from "./components/TodoList.vue";
+import TimeView from "./components/TimeView.vue";
 import SettingsDialog from "./components/SettingsDialog.vue";
 import ReportDialog from "./components/ReportDialog.vue";
 import type { TodoItem, AppSettings } from "./types";
@@ -35,6 +38,17 @@ const settings = ref<AppSettings>({
 });
 const showSettings = ref(false);
 const showReport = ref(false);
+const currentView = ref<"today" | "time">("today");
+
+const todayStr = computed(() => dayjs().format("YYYY-MM-DD"));
+
+const activeTodos = computed(() =>
+  todos.value.filter((t) => dayjs(t.createdAt).format("YYYY-MM-DD") === todayStr.value)
+);
+
+const completedTodos = computed(() =>
+  todos.value.filter((t) => t.completed)
+);
 
 provide("settings", settings);
 
@@ -141,12 +155,13 @@ async function handleSaveSettings(newSettings: AppSettings) {
 
 <template>
   <HappyProvider :enabled="settings.happyMode" v-slot="{ wave }">
-    <a-config-provider :theme="{ algorithm: currentAlgorithm }" :wave="wave">
+    <a-config-provider :theme="{ algorithm: currentAlgorithm }" :wave="wave" :locale="zhCN">
       <a-app>
         <div class="flex flex-col h-full bg-[var(--background)]">
-          <TitleBar @open-settings="showSettings = true" @open-report="showReport = true" />
+          <TitleBar @open-settings="showSettings = true" @open-report="showReport = true" @update:view="(v) => currentView = v as 'today' | 'time'" />
           <TodoList
-            :todos="todos"
+            v-if="currentView === 'today'"
+            :todos="activeTodos"
             :settings="settings"
             @add-todo="handleAddTodo"
             @update-todo="handleUpdateTodo"
@@ -154,6 +169,10 @@ async function handleSaveSettings(newSettings: AppSettings) {
             @reorder="handleReorder"
             @delete-todo="handleDeleteTodo"
             @set-tag="handleSetTag"
+          />
+          <TimeView
+            v-if="currentView === 'time'"
+            :todos="completedTodos"
           />
           <SettingsDialog
             v-model:open="showSettings"

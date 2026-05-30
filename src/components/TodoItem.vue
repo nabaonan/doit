@@ -10,6 +10,7 @@ const props = defineProps<{
   settings: AppSettings;
   isEditing: boolean;
   editContent: string;
+  readonly?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -169,6 +170,7 @@ function stopLongPress() {
 
 <template>
   <a-dropdown
+    v-if="!readonly"
     :menu="{ items: menuItems, onClick: onMenuClick }"
     :trigger="['contextmenu']"
   >
@@ -207,13 +209,21 @@ function stopLongPress() {
 
       <template v-else>
         <div class="flex items-center gap-3 relative z-10">
-          <a-checkbox
+          <a-config-provider
             v-if="settings.completionMode === 'checkbox'"
-            :checked="todo.completed"
-            class="shrink-0"
-            @mousedown.stop
-            @change="onCheckboxClick"
-          />
+            :theme="{
+              token: {
+                colorPrimary: '#22c55e',
+              },
+            }"
+          >
+            <a-checkbox
+              :checked="todo.completed"
+              class="shrink-0 todo-checkbox"
+              @mousedown.stop
+              @change="onCheckboxClick"
+            />
+          </a-config-provider>
 
           <div class="flex-1 min-w-0">
             <p
@@ -246,4 +256,45 @@ function stopLongPress() {
       </template>
     </div>
   </a-dropdown>
+
+  <div
+    v-if="readonly"
+    class="py-3 px-4 border-b border-[var(--border)] relative select-none"
+  >
+    <div class="flex items-center gap-3">
+      <div class="flex-1 min-w-0">
+        <p class="text-xl truncate text-[var(--muted-foreground)] line-through">
+          {{ todo.content }}
+        </p>
+      </div>
+
+      <a-tag
+        v-if="currentTag"
+        :color="currentTag.color"
+        variant="solid"
+        class="shrink-0 max-w-[80px] truncate"
+      >
+        {{ currentTag.name }}
+      </a-tag>
+
+      <span
+        v-if="todo.completed && durationText"
+        class="shrink-0 text-xs text-[var(--muted-foreground)]"
+      >
+        {{ durationText }}
+      </span>
+    </div>
+  </div>
 </template>
+
+<style scoped>
+.todo-checkbox :deep(.ant-checkbox-inner) {
+  border-radius: 50%;
+  width: 22px;
+  height: 22px;
+}
+.todo-checkbox :deep(.ant-checkbox-inner::after) {
+  width: 8px;
+  height: 12px;
+}
+</style>
