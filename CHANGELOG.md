@@ -1,5 +1,29 @@
 # Changelog
 
+## v0.1.19 (2026-05-30)
+
+### 新功能
+
+- 增加导出功能 (`b414404` by @内小子)
+- 增加日期视图 (`f0aec77` by @内小子)
+
+### 文档更新
+
+- 更新 Changelog for v0.1.18 (`a28fdf9` by @github-actions[bot])
+
+### 构建/工具
+
+- release v0.1.19 (`08444eb` by @内小子)
+- release v0.1.18 (`bd59ce5` by @内小子)
+- 替换字体文件 (`27bcf15` by @内小子)
+
+### 其他变更
+
+- Merge branch 'main' of github.com:nabaonan/doit (`13dfc87` by @内小子)
+
+---
+
+
 ## v0.1.18 (2026-05-30)
 
 ### 构建/工具
