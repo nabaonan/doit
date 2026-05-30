@@ -16,6 +16,7 @@
     "@ant-design/happy-work-theme": "^2.0.0",
     "@antdv-next/happy-work-theme": "^1.0.0",
     "@antdv-next/icons": "^1.0.8",
+    "@fontsource/noto-sans-sc": "^5.2.9",
     "@tauri-apps/api": "^2.11.0",
     "@tauri-apps/plugin-dialog": "^2.7.1",
     "@tauri-apps/plugin-fs": "^2.5.1",

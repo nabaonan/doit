@@ -112,96 +112,140 @@ async function copyToClipboard() {
   }
 }
 
-async function exportMarkdown() {
-  if (!isTauri) {
-    copyToClipboard();
-    return;
-  }
-  try {
-    const { save } = await import("@tauri-apps/plugin-dialog");
-    const { writeTextFile } = await import("@tauri-apps/plugin-fs");
-    const filePath = await save({
-      defaultPath: `doit-${reportType.value === "daily" ? "日报" : "周报"}-${dayjs().format("YYYYMMDD")}.md`,
-      filters: [{ name: "Markdown", extensions: ["md"] }],
-    });
-    if (!filePath) return;
-    await writeTextFile(filePath, reportText.value);
-  } catch {
-  }
+const FONT_CDN = "/fonts/noto-sans-sc.ttf";
+
+let fontBase64: string | null = null;
+
+async function loadCJKFont(): Promise<string> {
+  if (fontBase64) return fontBase64;
+  const res = await fetch(FONT_CDN);
+  const blob = await res.blob();
+  fontBase64 = await new Promise<string>((resolve) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve((reader.result as string).split(",")[1]);
+    reader.readAsDataURL(blob);
+  });
+  return fontBase64;
 }
 
-async function exportPDF() {
-  if (!isTauri) {
-    copyToClipboard();
-    return;
-  }
-  try {
-    const doc = new jsPDF();
-    const dateLabel =
-      reportType.value === "daily"
-        ? formatDate(todayStr.value)
-        : `${formatDate(weekRange.value.start)} - ${formatDate(weekRange.value.end)}`;
+async function buildPDFDoc(): Promise<jsPDF> {
+  const doc = new jsPDF();
 
-    doc.setFontSize(20);
-    doc.text("Doit 报告", 20, 20);
-    doc.setFontSize(12);
-    doc.text(`日期: ${dateLabel}`, 20, 30);
-    doc.text(
-      `完成率: ${completionRate.value.done}/${completionRate.value.total} (${completionRate.value.pct}%)`,
-      20,
-      38
-    );
+  const base64 = await loadCJKFont();
+  doc.addFileToVFS("cjk-font.ttf", base64);
+  doc.addFont("cjk-font.ttf", "CJKFont", "normal");
+  doc.setFont("CJKFont");
 
-    let y = 50;
+  const dateLabel =
+    reportType.value === "daily"
+      ? formatDate(todayStr.value)
+      : `${formatDate(weekRange.value.start)} - ${formatDate(weekRange.value.end)}`;
 
-    if (completedTodos.value.length > 0) {
-      doc.setFontSize(14);
-      doc.text("已完成", 20, y);
-      y += 8;
-      doc.setFontSize(11);
-      for (const todo of completedTodos.value) {
-        const duration = formatDuration(todo.createdAt, todo.completedAt);
-        const timeInfo = duration ? ` (${duration})` : "";
-        doc.text(`[x] ${todo.content}${timeInfo}`, 25, y);
-        y += 7;
-        if (y > 280) {
-          doc.addPage();
-          y = 20;
-        }
-      }
-      y += 5;
-    }
+  doc.setFontSize(20);
+  doc.text("Doit 报告", 20, 20);
+  doc.setFontSize(12);
+  doc.text(`日期: ${dateLabel}`, 20, 30);
+  doc.text(
+    `完成率: ${completionRate.value.done}/${completionRate.value.total} (${completionRate.value.pct}%)`,
+    20,
+    38
+  );
 
-    if (uncompletedTodos.value.length > 0) {
-      if (y > 260) {
+  let y = 50;
+
+  if (completedTodos.value.length > 0) {
+    doc.setFontSize(14);
+    doc.text("已完成", 20, y);
+    y += 8;
+    doc.setFontSize(11);
+    for (const todo of completedTodos.value) {
+      const duration = formatDuration(todo.createdAt, todo.completedAt);
+      const timeInfo = duration ? ` (${duration})` : "";
+      doc.text(`[x] ${todo.content}${timeInfo}`, 25, y);
+      y += 7;
+      if (y > 280) {
         doc.addPage();
         y = 20;
       }
-      doc.setFontSize(14);
-      doc.text("未完成", 20, y);
-      y += 8;
-      doc.setFontSize(11);
-      for (const todo of uncompletedTodos.value) {
-        doc.text(`[ ] ${todo.content}`, 25, y);
-        y += 7;
-        if (y > 280) {
-          doc.addPage();
-          y = 20;
-        }
+    }
+    y += 5;
+  }
+
+  if (uncompletedTodos.value.length > 0) {
+    if (y > 260) {
+      doc.addPage();
+      y = 20;
+    }
+    doc.setFontSize(14);
+    doc.text("未完成", 20, y);
+    y += 8;
+    doc.setFontSize(11);
+    for (const todo of uncompletedTodos.value) {
+      doc.text(`[ ] ${todo.content}`, 25, y);
+      y += 7;
+      if (y > 280) {
+        doc.addPage();
+        y = 20;
       }
     }
-
-    const pdfBytes = doc.output("arraybuffer");
-    const { save } = await import("@tauri-apps/plugin-dialog");
-    const { writeFile } = await import("@tauri-apps/plugin-fs");
-    const filePath = await save({
-      defaultPath: `doit-${reportType.value === "daily" ? "日报" : "周报"}-${dayjs().format("YYYYMMDD")}.pdf`,
-      filters: [{ name: "PDF", extensions: ["pdf"] }],
-    });
-    if (!filePath) return;
-    await writeFile(filePath, new Uint8Array(pdfBytes as ArrayBuffer));
-  } catch {
   }
+
+  return doc;
+}
+
+async function exportMarkdown() {
+  const filename = `doit-${reportType.value === "daily" ? "日报" : "周报"}-${dayjs().format("YYYYMMDD")}.md`;
+  const content = reportText.value;
+
+  if (isTauri) {
+    try {
+      const { save } = await import("@tauri-apps/plugin-dialog");
+      const { writeTextFile } = await import("@tauri-apps/plugin-fs");
+      const filePath = await save({
+        defaultPath: filename,
+        filters: [{ name: "Markdown", extensions: ["md"] }],
+      });
+      if (!filePath) return;
+      await writeTextFile(filePath, content);
+    } catch (e) {
+      console.error(e);
+    }
+    return;
+  }
+
+  const blob = new Blob([content], { type: "text/markdown;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+async function exportPDF() {
+  const filename = `doit-${reportType.value === "daily" ? "日报" : "周报"}-${dayjs().format("YYYYMMDD")}.pdf`;
+  const doc = await buildPDFDoc();
+
+  if (isTauri) {
+    try {
+      const pdfBytes = doc.output("arraybuffer");
+      const { save } = await import("@tauri-apps/plugin-dialog");
+      const { writeFile } = await import("@tauri-apps/plugin-fs");
+      const filePath = await save({
+        defaultPath: filename,
+        filters: [{ name: "PDF", extensions: ["pdf"] }],
+      });
+      if (!filePath) return;
+      await writeFile(filePath, new Uint8Array(pdfBytes as ArrayBuffer));
+    } catch (e) {
+      console.error(e);
+    }
+    return;
+  }
+
+  doc.save(filename);
 }
 
 function onCancel() {
