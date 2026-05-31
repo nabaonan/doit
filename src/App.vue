@@ -4,6 +4,9 @@ import { theme as antTheme } from "antdv-next";
 import zhCN from "antdv-next/locale/zh_CN";
 import { HappyProvider } from "@antdv-next/happy-work-theme";
 import dayjs from "dayjs";
+import "dayjs/locale/zh-cn";
+
+dayjs.locale("zh-cn");
 import TitleBar from "./components/TitleBar.vue";
 import TodoList from "./components/TodoList.vue";
 import TimeView from "./components/TimeView.vue";
