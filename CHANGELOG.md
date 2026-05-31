@@ -1,5 +1,33 @@
 # Changelog
 
+## v0.1.23 (2026-05-31)
+
+### 新功能
+
+- 实现嵌套todo拖拽功能并修复多项bug (`b5d1396` by @内小子)
+- 支持子任务创建 (`c22fba9` by @内小子)
+
+### Bug 修复
+
+- 解决无限层级嵌套问题 (`5d7b3c2` by @内小子)
+- 完善父子任务拖拽错乱问题 (`0a9e318` by @内小子)
+- 修复总是显示暂无标签的tag选项 (`3c9e240` by @内小子)
+
+### 文档更新
+
+- 更新 Changelog for v0.1.22 (`44d42b6` by @github-actions[bot])
+
+### 构建/工具
+
+- release v0.1.23 (`cdcafeb` by @内小子)
+
+### 其他变更
+
+- Merge branch 'main' of github.com:nabaonan/doit (`c2bfc5a` by @内小子)
+
+---
+
+
 ## v0.1.22 (2026-05-31)
 
 ### Bug 修复
