@@ -58,16 +58,21 @@ const durationText = computed(() => {
 });
 
 const tagMenuChildren = computed(() => {
-  const items: MenuItemType[] = [
-    {
-      key: "tag-null",
-      label: "无标签",
-      icon: h("span", {
-        class: "inline-block w-2.5 h-2.5 rounded-full border border-[var(--border)] shrink-0",
-      }),
-    },
-  ];
-  for (const tag of (props.settings.tags || [])) {
+  const tags = props.settings.tags || [];
+  if (tags.length === 0) {
+    return [
+      {
+        key: "tag-placeholder",
+        label: "暂无标签",
+        disabled: true,
+        icon: h("span", {
+          class: "inline-block w-2.5 h-2.5 rounded-full border border-[var(--border)] shrink-0",
+        }),
+      },
+    ];
+  }
+  const items: MenuItemType[] = [];
+  for (const tag of tags) {
     items.push({
       key: `tag-${tag.id}`,
       label: tag.name,
