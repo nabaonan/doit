@@ -157,7 +157,7 @@ async function handleSaveSettings(newSettings: AppSettings) {
   <HappyProvider :enabled="settings.happyMode" v-slot="{ wave }">
     <a-config-provider :theme="{ algorithm: currentAlgorithm }" :wave="wave" :locale="zhCN">
       <a-app>
-        <div class="flex flex-col h-full bg-[var(--background)]">
+        <div class="flex flex-col h-screen bg-[var(--background)]">
           <TitleBar @open-settings="showSettings = true" @open-report="showReport = true" @update:view="(v) => currentView = v as 'today' | 'time'" />
           <TodoList
             v-if="currentView === 'today'"
