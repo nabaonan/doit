@@ -54,6 +54,12 @@ provide("settings", settings);
 
 const currentAlgorithm = ref(antTheme.defaultAlgorithm);
 
+function isBeijingNight(): boolean {
+  const now = new Date();
+  const bjHour = (now.getUTCHours() + 8) % 24;
+  return bjHour >= 18 || bjHour < 6;
+}
+
 function applyTheme(theme: "system" | "light" | "dark") {
   const root = document.documentElement;
   if (theme === "dark") {
@@ -63,24 +69,22 @@ function applyTheme(theme: "system" | "light" | "dark") {
     root.classList.remove("dark");
     currentAlgorithm.value = antTheme.defaultAlgorithm;
   } else {
-    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-    root.classList.toggle("dark", prefersDark);
-    currentAlgorithm.value = prefersDark ? antTheme.darkAlgorithm : antTheme.defaultAlgorithm;
+    const dark = isBeijingNight();
+    root.classList.toggle("dark", dark);
+    currentAlgorithm.value = dark ? antTheme.darkAlgorithm : antTheme.defaultAlgorithm;
   }
 }
 
-let systemThemeQuery: MediaQueryList | null = null;
+let systemThemeTimer: ReturnType<typeof setInterval> | null = null;
 
-function watchSystemTheme() {
-  systemThemeQuery = window.matchMedia("(prefers-color-scheme: dark)");
-  const handler = () => {
+function startSystemThemeTimer() {
+  systemThemeTimer = setInterval(() => {
     if (settings.value.theme === "system") {
-      const prefersDark = systemThemeQuery!.matches;
-      document.documentElement.classList.toggle("dark", prefersDark);
-      currentAlgorithm.value = prefersDark ? antTheme.darkAlgorithm : antTheme.defaultAlgorithm;
+      const dark = isBeijingNight();
+      document.documentElement.classList.toggle("dark", dark);
+      currentAlgorithm.value = dark ? antTheme.darkAlgorithm : antTheme.defaultAlgorithm;
     }
-  };
-  systemThemeQuery.addEventListener("change", handler);
+  }, 60_000);
 }
 
 onMounted(async () => {
@@ -89,12 +93,13 @@ onMounted(async () => {
   todos.value = await getAllTodos();
   settings.value = await getSettings();
   applyTheme(settings.value.theme);
-  watchSystemTheme();
+  startSystemThemeTimer();
 });
 
 onUnmounted(() => {
-  if (systemThemeQuery) {
-    systemThemeQuery.removeEventListener("change", () => {});
+  if (systemThemeTimer) {
+    clearInterval(systemThemeTimer);
+    systemThemeTimer = null;
   }
 });
 
