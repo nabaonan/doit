@@ -1,6 +1,6 @@
 [package]
 name = "doit"
-version = "0.1.22"
+version = "0.1.23"
 description = "简洁的桌面待办事项应用"
 authors = ["nabaonan"]
 edition = "2021"
