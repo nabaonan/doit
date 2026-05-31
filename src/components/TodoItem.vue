@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref, computed, watch, h } from "vue";
-import { EditOutlined, DeleteOutlined, TagOutlined } from "@antdv-next/icons";
+import { ref, computed, watch, h, nextTick } from "vue";
+import { EditOutlined, DeleteOutlined, TagOutlined, PlusOutlined } from "@antdv-next/icons";
 import type { MenuItemType } from "antdv-next";
 import dayjs from "dayjs";
 import type { TodoItem as TodoItemType, AppSettings } from "../types";
@@ -11,6 +11,8 @@ const props = defineProps<{
   isEditing: boolean;
   editContent: string;
   readonly?: boolean;
+  hasChildren?: boolean;
+  isSubTask?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -20,6 +22,7 @@ const emit = defineEmits<{
   (e: "cancel-edit"): void;
   (e: "delete-todo"): void;
   (e: "set-tag", tagId: string | null): void;
+  (e: "add-sub-todo", content: string): void;
 }>();
 
 const editInput = ref<HTMLInputElement | null>(null);
@@ -30,12 +33,16 @@ let longPressTimer: ReturnType<typeof setTimeout> | null = null;
 
 watch(
   () => props.isEditing,
-  (val) => {
+  async (val) => {
     if (val) {
       localEditContent.value = props.editContent;
-      setTimeout(() => editInput.value?.focus(), 0);
+      await nextTick();
+      requestAnimationFrame(() => {
+        editInput.value?.focus();
+      });
     }
-  }
+  },
+  { immediate: true }
 );
 
 const currentTag = computed(() => {
@@ -85,27 +92,38 @@ const tagMenuChildren = computed(() => {
   return items;
 });
 
-const menuItems = computed<MenuItemType[]>(() => [
-  {
-    key: "edit",
-    label: "编辑",
-    icon: h(EditOutlined),
-    disabled: props.todo.completed,
-  },
-  {
-    key: "tag",
-    label: "设置标签",
-    icon: h(TagOutlined),
-    children: tagMenuChildren.value,
-  },
-  { type: "divider" },
-  {
+const menuItems = computed<MenuItemType[]>(() => {
+  const items: MenuItemType[] = [
+    {
+      key: "edit",
+      label: "编辑",
+      icon: h(EditOutlined),
+      disabled: props.todo.completed,
+    },
+    {
+      key: "tag",
+      label: "设置标签",
+      icon: h(TagOutlined),
+      children: tagMenuChildren.value,
+    },
+  ];
+  if (!props.isSubTask) {
+    items.push({
+      key: "subtask",
+      label: "子任务",
+      icon: h(PlusOutlined),
+      disabled: props.todo.completed,
+    });
+  }
+  items.push({ type: "divider" });
+  items.push({
     key: "delete",
     label: "删除",
     icon: h(DeleteOutlined),
     danger: true,
-  },
-]);
+  });
+  return items;
+});
 
 function onMenuClick({ key }: { key: string }) {
   if (key === "edit") {
@@ -113,6 +131,9 @@ function onMenuClick({ key }: { key: string }) {
     emit("start-edit");
   } else if (key === "delete") {
     emit("delete-todo");
+  } else if (key === "subtask") {
+    if (props.todo.completed) return;
+    emit("add-sub-todo", "");
   } else if (key === "tag-null") {
     emit("set-tag", null);
   } else if (key.startsWith("tag-")) {
@@ -126,6 +147,7 @@ function onCheckboxClick() {
 
 function onDblClick() {
   if (props.todo.completed) return;
+  if (props.hasChildren) return;
   emit("start-edit");
 }
 
@@ -149,6 +171,7 @@ function onKeydown(e: KeyboardEvent) {
 function startLongPress() {
   if (props.settings.completionMode !== "longpress") return;
   if (props.todo.completed) return;
+  if (props.hasChildren) return;
   isLongPressing.value = true;
   const durationMs = props.settings.longPressDuration * 1000;
 
@@ -181,7 +204,10 @@ function stopLongPress() {
   >
     <div
       class="py-3 px-4 border-b border-[var(--border)] cursor-pointer relative overflow-hidden select-none"
-      :class="{ 'cursor-default': isEditing }"
+      :class="{
+        'cursor-default': isEditing,
+        'pl-8 ml-2': isSubTask,
+      }"
       @dblclick="onDblClick"
       @mousedown="startLongPress"
       @mouseup="stopLongPress"
@@ -208,7 +234,7 @@ function stopLongPress() {
           size="large"
           class="flex-1"
           @keydown="onKeydown"
-          @blur="onCancel"
+          @blur="onSave"
         />
       </div>
 
@@ -224,6 +250,7 @@ function stopLongPress() {
           >
             <a-checkbox
               :checked="todo.completed"
+              :disabled="hasChildren"
               class="shrink-0 todo-checkbox"
               @mousedown.stop
               @change="onCheckboxClick"
@@ -264,7 +291,10 @@ function stopLongPress() {
 
   <div
     v-if="readonly"
-    class="py-3 px-4 border-b border-[var(--border)] relative select-none"
+    :class="{
+       'py-3 px-4 border-b border-[var(--border)] relative select-none': true,
+       'pl-8 ml-2': isSubTask,
+     }"
   >
     <div class="flex items-center gap-3">
       <div class="flex-1 min-w-0">

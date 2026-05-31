@@ -16,7 +16,8 @@ async function loadDB() {
       created_at TEXT NOT NULL,
       completed_at TEXT,
       sort_order INTEGER NOT NULL DEFAULT 0,
-      tag_id TEXT
+      tag_id TEXT,
+      parent_id TEXT
     )`
   )
 }
@@ -45,10 +46,30 @@ export async function init(): Promise<void> {
 }
 
 function sortTodos(todos: TodoItem[]): TodoItem[] {
-  return todos.slice().sort((a, b) => {
+  const topLevel = todos.filter((t) => !t.parentId)
+  const children = todos.filter((t) => t.parentId)
+  const childMap = new Map<string, TodoItem[]>()
+  for (const c of children) {
+    const list = childMap.get(c.parentId!) || []
+    list.push(c)
+    childMap.set(c.parentId!, list)
+  }
+  for (const [, list] of childMap) {
+    list.sort((a, b) => a.order - b.order)
+  }
+  topLevel.sort((a, b) => {
     if (a.completed !== b.completed) return a.completed ? 1 : -1
     return a.order - b.order
   })
+  const result: TodoItem[] = []
+  for (const parent of topLevel) {
+    result.push(parent)
+    const subs = childMap.get(parent.id) || []
+    for (const sub of subs) {
+      result.push(sub)
+    }
+  }
+  return result
 }
 
 export async function getAllTodos(): Promise<TodoItem[]> {
@@ -62,6 +83,7 @@ export async function getAllTodos(): Promise<TodoItem[]> {
       completed_at: string | null
       sort_order: number
       tag_id: string | null
+      parent_id: string | null
     }>>("SELECT * FROM todos ORDER BY completed ASC, sort_order ASC")
     return rows.map((row) => ({
       id: row.id,
@@ -71,6 +93,7 @@ export async function getAllTodos(): Promise<TodoItem[]> {
       completedAt: row.completed_at,
       order: row.sort_order,
       tagId: row.tag_id,
+      parentId: row.parent_id,
     }))
   }
   return sortTodos(getLocalTodos())
@@ -80,8 +103,8 @@ export async function addTodo(item: TodoItem): Promise<void> {
   if (isTauri) {
     if (!db) await loadDB()
     await (db as { execute: (sql: string, params: unknown[]) => Promise<void> }).execute(
-      "INSERT INTO todos (id, content, completed, created_at, completed_at, sort_order, tag_id) VALUES ($1, $2, $3, $4, $5, $6, $7)",
-      [item.id, item.content, item.completed ? 1 : 0, item.createdAt, item.completedAt, item.order, item.tagId]
+      "INSERT INTO todos (id, content, completed, created_at, completed_at, sort_order, tag_id, parent_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
+      [item.id, item.content, item.completed ? 1 : 0, item.createdAt, item.completedAt, item.order, item.tagId, item.parentId]
     )
     return
   }
@@ -121,6 +144,10 @@ export async function updateTodo(id: string, data: Partial<TodoItem>): Promise<v
       setClauses.push(`tag_id = $${params.length + 1}`)
       params.push(data.tagId)
     }
+    if (data.parentId !== undefined) {
+      setClauses.push(`parent_id = $${params.length + 1}`)
+      params.push(data.parentId)
+    }
 
     if (setClauses.length === 0) return
 
@@ -143,11 +170,17 @@ export async function updateTodo(id: string, data: Partial<TodoItem>): Promise<v
 export async function deleteTodo(id: string): Promise<void> {
   if (isTauri) {
     if (!db) await loadDB()
+    await (db as { execute: (sql: string, params: unknown[]) => Promise<void> }).execute("DELETE FROM todos WHERE parent_id = $1", [id])
     await (db as { execute: (sql: string, params: unknown[]) => Promise<void> }).execute("DELETE FROM todos WHERE id = $1", [id])
     return
   }
-  const todos = getLocalTodos().filter((t) => t.id !== id)
-  saveLocalTodos(todos)
+  const todos = getLocalTodos()
+  const idsToDelete = new Set<string>()
+  idsToDelete.add(id)
+  for (const t of todos) {
+    if (t.parentId === id) idsToDelete.add(t.id)
+  }
+  saveLocalTodos(todos.filter((t) => !idsToDelete.has(t.id)))
 }
 
 export async function reorderTodos(ids: string[]): Promise<void> {

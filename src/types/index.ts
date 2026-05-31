@@ -6,6 +6,7 @@ export interface TodoItem {
   completedAt: string | null
   order: number
   tagId: string | null
+  parentId: string | null
 }
 
 export interface ShortcutConfig {

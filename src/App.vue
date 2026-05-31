@@ -119,6 +119,7 @@ async function handleAddTodo(content: string) {
     completedAt: null,
     order: todos.value.length,
     tagId: null,
+    parentId: null,
   };
   await addTodo(newTodo);
   todos.value = await getAllTodos();
@@ -137,15 +138,56 @@ async function handleSetTag(id: string, tagId: string | null) {
 async function handleToggleComplete(id: string) {
   const todo = todos.value.find((t) => t.id === id);
   if (!todo) return;
+  if (todo.parentId === null) {
+    const hasChildren = todos.value.some((t) => t.parentId === id);
+    if (hasChildren) return;
+  }
   await updateTodo(id, {
     completed: !todo.completed,
     completedAt: !todo.completed ? new Date().toISOString() : null,
   });
+  if (todo.parentId) {
+    await syncParentCompletion(todo.parentId);
+  }
   todos.value = await getAllTodos();
 }
 
-async function handleReorder(newOrder: string[]) {
-  await reorderTodos(newOrder);
+async function syncParentCompletion(parentId: string) {
+  const children = todos.value.filter((t) => t.parentId === parentId);
+  if (children.length === 0) return;
+  const allCompleted = children.every((c) => c.completed);
+  const parent = todos.value.find((t) => t.id === parentId);
+  if (parent && parent.completed !== allCompleted) {
+    await updateTodo(parentId, {
+      completed: allCompleted,
+      completedAt: allCompleted ? new Date().toISOString() : null,
+    });
+  }
+}
+
+async function handleReorder(ids: string[], parentIds?: Record<string, string | null>) {
+  if (parentIds) {
+    for (const [id, parentId] of Object.entries(parentIds)) {
+      await updateTodo(id, { parentId });
+    }
+  }
+  await reorderTodos(ids);
+  todos.value = await getAllTodos();
+}
+
+async function handleAddSubTodo(parentId: string, content: string) {
+  const siblings = todos.value.filter((t) => t.parentId === parentId);
+  const newTodo: TodoItem = {
+    id: crypto.randomUUID(),
+    content,
+    completed: false,
+    createdAt: new Date().toISOString(),
+    completedAt: null,
+    order: siblings.length,
+    tagId: null,
+    parentId,
+  };
+  await addTodo(newTodo);
   todos.value = await getAllTodos();
 }
 
@@ -177,6 +219,7 @@ async function handleSaveSettings(newSettings: AppSettings) {
             @reorder="handleReorder"
             @delete-todo="handleDeleteTodo"
             @set-tag="handleSetTag"
+            @add-sub-todo="handleAddSubTodo"
           />
           <TimeView
             v-if="currentView === 'time'"
