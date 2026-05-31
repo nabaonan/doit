@@ -4,7 +4,8 @@ import { CopyOutlined, DownloadOutlined, FileTextOutlined } from "@antdv-next/ic
 import dayjs from "dayjs";
 import isoWeek from "dayjs/plugin/isoWeek";
 import { jsPDF } from "jspdf";
-import type { TodoItem } from "../types";
+import type { TodoItem, TodoItemNode } from "../types";
+import { flatToNested } from "../types";
 import { isTauri } from "../services/tauriEnv";
 
 dayjs.extend(isoWeek);
@@ -38,12 +39,11 @@ const filteredTodos = computed(() => {
   });
 });
 
-const completedTodos = computed(() => filteredTodos.value.filter((t) => t.completed));
-const uncompletedTodos = computed(() => filteredTodos.value.filter((t) => !t.completed));
+const nestedTodos = computed(() => flatToNested(filteredTodos.value));
 
 const completionRate = computed(() => {
   const total = filteredTodos.value.length;
-  const done = completedTodos.value.length;
+  const done = filteredTodos.value.filter((t) => t.completed).length;
   const pct = total > 0 ? Math.round((done / total) * 100) : 0;
   return { done, total, pct };
 });
@@ -66,6 +66,22 @@ function formatDate(dateStr: string): string {
   return dayjs(dateStr).format("YYYY年MM月DD日");
 }
 
+function renderTreeMarkdown(nodes: TodoItemNode[], depth: number): string[] {
+  const lines: string[] = [];
+  const indent = "  ".repeat(depth);
+  for (const node of nodes) {
+    const checkbox = node.completed ? "[x]" : "[ ]";
+    const duration = node.completed
+      ? ` (${formatDuration(node.createdAt, node.completedAt)})`
+      : "";
+    lines.push(`${indent}- ${checkbox} ${node.content}${duration}`);
+    if (node.children.length > 0) {
+      lines.push(...renderTreeMarkdown(node.children, depth + 1));
+    }
+  }
+  return lines;
+}
+
 const reportText = computed(() => {
   const dateLabel =
     reportType.value === "daily"
@@ -80,26 +96,10 @@ const reportText = computed(() => {
   );
   lines.push("");
 
-  if (completedTodos.value.length > 0) {
-    lines.push("## 已完成");
-    for (const todo of completedTodos.value) {
-      const duration = formatDuration(todo.createdAt, todo.completedAt);
-      const timeInfo = duration ? ` (${duration})` : "";
-      lines.push(`- [x] ${todo.content}${timeInfo}`);
-    }
-    lines.push("");
-  }
-
-  if (uncompletedTodos.value.length > 0) {
-    lines.push("## 未完成");
-    for (const todo of uncompletedTodos.value) {
-      lines.push(`- [ ] ${todo.content}`);
-    }
-    lines.push("");
-  }
-
   if (filteredTodos.value.length === 0) {
     lines.push("暂无数据");
+  } else {
+    lines.push(...renderTreeMarkdown(nestedTodos.value, 0));
   }
 
   return lines.join("\n");
@@ -170,42 +170,28 @@ async function buildPDFDoc(): Promise<jsPDF> {
 
   let y = 50;
 
-  if (completedTodos.value.length > 0) {
-    doc.setFontSize(14);
-    doc.text("已完成", 20, y);
-    y += 8;
-    doc.setFontSize(11);
-    for (const todo of completedTodos.value) {
-      const duration = formatDuration(todo.createdAt, todo.completedAt);
-      const timeInfo = duration ? ` (${duration})` : "";
-      doc.text(`[x] ${todo.content}${timeInfo}`, 25, y);
+  doc.setFontSize(11);
+  const todos = nestedTodos.value;
+
+  function renderTreePDF(nodes: TodoItemNode[], depth: number) {
+    for (const node of nodes) {
+      const checkbox = node.completed ? "[x]" : "[ ]";
+      const duration = node.completed
+        ? ` (${formatDuration(node.createdAt, node.completedAt)})`
+        : "";
+      doc.text(`${checkbox} ${node.content}${duration}`, 25 + depth * 12, y);
       y += 7;
       if (y > 280) {
         doc.addPage();
         y = 20;
       }
+      if (node.children.length > 0) {
+        renderTreePDF(node.children, depth + 1);
+      }
     }
-    y += 5;
   }
 
-  if (uncompletedTodos.value.length > 0) {
-    if (y > 260) {
-      doc.addPage();
-      y = 20;
-    }
-    doc.setFontSize(14);
-    doc.text("未完成", 20, y);
-    y += 8;
-    doc.setFontSize(11);
-    for (const todo of uncompletedTodos.value) {
-      doc.text(`[ ] ${todo.content}`, 25, y);
-      y += 7;
-      if (y > 280) {
-        doc.addPage();
-        y = 20;
-      }
-    }
-  }
+  renderTreePDF(todos, 0);
 
   return doc;
 }

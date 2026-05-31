@@ -13,6 +13,7 @@ const props = defineProps<{
   readonly?: boolean;
   hasChildren?: boolean;
   isSubTask?: boolean;
+  depth?: number;
 }>();
 
 const emit = defineEmits<{
@@ -204,8 +205,8 @@ function stopLongPress() {
       class="py-3 px-4 border-b border-[var(--border)] cursor-pointer relative overflow-hidden select-none"
       :class="{
         'cursor-default': isEditing,
-        'pl-8 ml-2': isSubTask,
       }"
+      :style="(depth ?? 0) > 0 ? { paddingLeft: `${24 + (depth ?? 0) * 20}px` } : undefined"
       @dblclick="onDblClick"
       @mousedown="startLongPress"
       @mouseup="stopLongPress"
@@ -291,8 +292,8 @@ function stopLongPress() {
     v-if="readonly"
     :class="{
        'py-3 px-4 border-b border-[var(--border)] relative select-none': true,
-       'pl-8 ml-2': isSubTask,
      }"
+     :style="(depth ?? 0) > 0 ? { paddingLeft: `${24 + (depth ?? 0) * 20}px` } : undefined"
   >
     <div class="flex items-center gap-3">
       <div class="flex-1 min-w-0">

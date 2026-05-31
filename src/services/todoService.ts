@@ -46,28 +46,33 @@ export async function init(): Promise<void> {
 }
 
 function sortTodos(todos: TodoItem[]): TodoItem[] {
-  const topLevel = todos.filter((t) => !t.parentId)
-  const children = todos.filter((t) => t.parentId)
   const childMap = new Map<string, TodoItem[]>()
-  for (const c of children) {
-    const list = childMap.get(c.parentId!) || []
-    list.push(c)
-    childMap.set(c.parentId!, list)
+  for (const t of todos) {
+    if (t.parentId) {
+      const list = childMap.get(t.parentId) || []
+      list.push(t)
+      childMap.set(t.parentId, list)
+    }
   }
   for (const [, list] of childMap) {
     list.sort((a, b) => a.order - b.order)
   }
+  const topLevel = todos.filter((t) => !t.parentId)
   topLevel.sort((a, b) => {
     if (a.completed !== b.completed) return a.completed ? 1 : -1
     return a.order - b.order
   })
   const result: TodoItem[] = []
+  function collect(parentId: string) {
+    const children = childMap.get(parentId) || []
+    for (const child of children) {
+      result.push(child)
+      collect(child.id)
+    }
+  }
   for (const parent of topLevel) {
     result.push(parent)
-    const subs = childMap.get(parent.id) || []
-    for (const sub of subs) {
-      result.push(sub)
-    }
+    collect(parent.id)
   }
   return result
 }

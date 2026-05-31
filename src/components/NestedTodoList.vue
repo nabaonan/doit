@@ -11,6 +11,7 @@ const props = defineProps<{
   settings: AppSettings;
   editingId: string | null;
   editContent: string;
+  depth?: number;
   toggleComplete: (id: string) => void;
   startEdit: (node: TodoItemNode) => void;
   saveEdit: (content: string) => void;
@@ -19,6 +20,8 @@ const props = defineProps<{
   setTag: (id: string, tagId: string | null) => void;
   addSubTodo: (parentId: string, content: string) => void;
 }>();
+
+const currentDepth = props.depth ?? 0;
 
 const emit = defineEmits<{
   (e: "update:modelValue", value: TodoItemNode[]): void;
@@ -49,6 +52,7 @@ const list = computed({
         :edit-content="editContent"
         :has-children="element.children.length > 0"
         :is-sub-task="!!element.parentId"
+        :depth="currentDepth"
         @toggle-complete="toggleComplete(element.id)"
         @start-edit="startEdit(element)"
         @save-edit="(content: string) => saveEdit(content)"
@@ -63,6 +67,7 @@ const list = computed({
         :settings="settings"
         :editing-id="editingId"
         :edit-content="editContent"
+        :depth="currentDepth + 1"
         :toggle-complete="toggleComplete"
         :start-edit="startEdit"
         :save-edit="saveEdit"

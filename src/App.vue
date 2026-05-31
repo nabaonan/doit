@@ -168,16 +168,35 @@ async function syncParentCompletion(parentId: string) {
       completedAt: parent.completedAt,
     });
   }
+  if (parent && parent.parentId) {
+    await syncParentCompletion(parent.parentId);
+  }
 }
 
 async function handleReorder(ids: string[], parentIds?: Record<string, string | null>) {
+  const oldParentIds = new Map<string, string | null>();
+
   if (parentIds) {
-    for (const [id, parentId] of Object.entries(parentIds)) {
-      await updateTodo(id, { parentId });
+    for (const [id, newParentId] of Object.entries(parentIds)) {
+      const todo = todos.value.find((t) => t.id === id);
+      oldParentIds.set(id, todo?.parentId ?? null);
+      await updateTodo(id, { parentId: newParentId });
     }
   }
   await reorderTodos(ids);
   todos.value = await getAllTodos();
+
+  if (parentIds) {
+    const affectedParents = new Set<string>();
+    for (const [id, newParentId] of Object.entries(parentIds)) {
+      const oldParentId = oldParentIds.get(id);
+      if (oldParentId) affectedParents.add(oldParentId);
+      if (newParentId) affectedParents.add(newParentId);
+    }
+    for (const parentId of affectedParents) {
+      await syncParentCompletion(parentId);
+    }
+  }
 }
 
 async function handleAddSubTodo(parentId: string, content: string) {
