@@ -23,6 +23,7 @@ const newTodoInput = ref("");
 const editingId = ref<string | null>(null);
 const editContent = ref("");
 const isDragging = ref(false);
+const draggedItemId = ref<string | null>(null);
 
 const draggableList = ref<TodoItemType[]>([]);
 const listContainerRef = ref<HTMLElement | null>(null);
@@ -89,12 +90,43 @@ watch(
   { immediate: true }
 );
 
-function onDragStart() {
+function onDragStart(evt: { item: HTMLElement }) {
   isDragging.value = true;
+  draggedItemId.value = evt.item.dataset.todoId || null;
 }
 
 function onDragEnd() {
   isDragging.value = false;
+
+  if (draggedItemId.value) {
+    const draggedItem = draggableList.value.find((t) => t.id === draggedItemId.value);
+    if (draggedItem && !draggedItem.parentId) {
+      const childMap = new Map<string, TodoItemType[]>();
+      for (const item of draggableList.value) {
+        if (item.parentId) {
+          const list = childMap.get(item.parentId) || [];
+          list.push(item);
+          childMap.set(item.parentId, list);
+        }
+      }
+      const result: TodoItemType[] = [];
+      const seen = new Set<string>();
+      for (const item of draggableList.value) {
+        if (seen.has(item.id)) continue;
+        if (!item.parentId) {
+          result.push(item);
+          seen.add(item.id);
+          const children = childMap.get(item.id) || [];
+          for (const child of children) {
+            result.push(child);
+            seen.add(child.id);
+          }
+        }
+      }
+      draggableList.value = result;
+    }
+  }
+  draggedItemId.value = null;
 
   const parentIdChanges: Record<string, string | null> = {};
   let currentParentId: string | null = null;
