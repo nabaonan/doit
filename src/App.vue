@@ -142,14 +142,17 @@ async function handleToggleComplete(id: string) {
     const hasChildren = todos.value.some((t) => t.parentId === id);
     if (hasChildren) return;
   }
+  const newCompleted = !todo.completed;
+  todo.completed = newCompleted;
+  todo.completedAt = newCompleted ? new Date().toISOString() : null;
   await updateTodo(id, {
-    completed: !todo.completed,
-    completedAt: !todo.completed ? new Date().toISOString() : null,
+    completed: newCompleted,
+    completedAt: todo.completedAt,
   });
   if (todo.parentId) {
     await syncParentCompletion(todo.parentId);
   }
-  todos.value = await getAllTodos();
+  todos.value = [...todos.value];
 }
 
 async function syncParentCompletion(parentId: string) {
@@ -158,9 +161,11 @@ async function syncParentCompletion(parentId: string) {
   const allCompleted = children.every((c) => c.completed);
   const parent = todos.value.find((t) => t.id === parentId);
   if (parent && parent.completed !== allCompleted) {
+    parent.completed = allCompleted;
+    parent.completedAt = allCompleted ? new Date().toISOString() : null;
     await updateTodo(parentId, {
       completed: allCompleted,
-      completedAt: allCompleted ? new Date().toISOString() : null,
+      completedAt: parent.completedAt,
     });
   }
 }

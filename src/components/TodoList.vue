@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { ref, watch, nextTick } from "vue";
-import draggable from "vuedraggable";
-import TodoItem from "./TodoItem.vue";
-import type { TodoItem as TodoItemType, AppSettings } from "../types";
+import { ref, watch } from "vue";
+import NestedTodoList from "./NestedTodoList.vue";
+import type { TodoItem as TodoItemType, TodoItemNode, AppSettings } from "../types";
+import { flatToNested, nestedToFlat } from "../types";
 
 const props = defineProps<{
   todos: TodoItemType[];
@@ -22,55 +22,71 @@ const emit = defineEmits<{
 const newTodoInput = ref("");
 const editingId = ref<string | null>(null);
 const editContent = ref("");
-const isDragging = ref(false);
-const draggedItemId = ref<string | null>(null);
 
-const draggableList = ref<TodoItemType[]>([]);
-const listContainerRef = ref<HTMLElement | null>(null);
+const nestedTodos = ref<TodoItemNode[]>([]);
+let isProgrammaticUpdate = false;
+
+function mergeNested(existing: TodoItemNode[], incoming: TodoItemNode[]) {
+  const existingMap = new Map<string, TodoItemNode>();
+  function collect(list: TodoItemNode[]) {
+    for (const node of list) {
+      existingMap.set(node.id, node);
+      if (node.children.length > 0) collect(node.children);
+    }
+  }
+  collect(existing);
+
+  function merge(list: TodoItemNode[], incList: TodoItemNode[]) {
+    list.length = 0;
+    for (const inc of incList) {
+      const existingNode = existingMap.get(inc.id);
+      if (existingNode) {
+        existingNode.content = inc.content;
+        existingNode.completed = inc.completed;
+        existingNode.completedAt = inc.completedAt;
+        existingNode.order = inc.order;
+        existingNode.tagId = inc.tagId;
+        existingNode.parentId = inc.parentId;
+        merge(existingNode.children, inc.children);
+        list.push(existingNode);
+        existingMap.delete(inc.id);
+      } else {
+        list.push(inc);
+      }
+    }
+  }
+  merge(existing, incoming);
+}
 
 watch(
   () => props.todos,
-  async (todos) => {
-    if (isDragging.value) return;
-
-    const container = listContainerRef.value;
-    const oldTops = new Map<string, number>();
-
-    if (container) {
-      container.querySelectorAll("[data-todo-id]").forEach((el) => {
-        const id = (el as HTMLElement).dataset.todoId;
-        if (id) oldTops.set(id, el.getBoundingClientRect().top);
-      });
-    }
-
-    draggableList.value = [...todos];
-
-    await nextTick();
-
-    if (container) {
-      container.querySelectorAll("[data-todo-id]").forEach((el) => {
-        const id = (el as HTMLElement).dataset.todoId;
-        if (!id) return;
-        const oldTop = oldTops.get(id);
-        if (oldTop === undefined) return;
-        const newTop = el.getBoundingClientRect().top;
-        const delta = oldTop - newTop;
-        if (Math.abs(delta) < 0.5) return;
-
-        const htmlEl = el as HTMLElement;
-        htmlEl.style.transition = "none";
-        htmlEl.style.transform = `translateY(${delta}px)`;
-
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            htmlEl.style.transition = "transform 0.3s ease";
-            htmlEl.style.transform = "";
-          });
-        });
-      });
-    }
+  (todos) => {
+    isProgrammaticUpdate = true;
+    mergeNested(nestedTodos.value, flatToNested(todos));
+    setTimeout(() => {
+      isProgrammaticUpdate = false;
+    }, 0);
   },
   { deep: true, immediate: true }
+);
+
+watch(
+  nestedTodos,
+  () => {
+    if (isProgrammaticUpdate) return;
+    const flat = nestedToFlat(nestedTodos.value);
+    const ids = flat.map((t) => t.id);
+    const parentIdChanges: Record<string, string | null> = {};
+    for (const item of flat) {
+      const original = props.todos.find((t) => t.id === item.id);
+      if (original && original.parentId !== item.parentId) {
+        parentIdChanges[item.id] = item.parentId;
+      }
+    }
+    const hasChanges = Object.keys(parentIdChanges).length > 0;
+    emit("reorder", ids, hasChanges ? parentIdChanges : undefined);
+  },
+  { deep: true }
 );
 
 let prevTodoIds = new Set<string>();
@@ -89,62 +105,6 @@ watch(
   },
   { immediate: true }
 );
-
-function onDragStart(evt: { item: HTMLElement }) {
-  isDragging.value = true;
-  draggedItemId.value = evt.item.dataset.todoId || null;
-}
-
-function onDragEnd() {
-  isDragging.value = false;
-
-  if (draggedItemId.value) {
-    const draggedItem = draggableList.value.find((t) => t.id === draggedItemId.value);
-    if (draggedItem && !draggedItem.parentId) {
-      const childMap = new Map<string, TodoItemType[]>();
-      for (const item of draggableList.value) {
-        if (item.parentId) {
-          const list = childMap.get(item.parentId) || [];
-          list.push(item);
-          childMap.set(item.parentId, list);
-        }
-      }
-      const result: TodoItemType[] = [];
-      const seen = new Set<string>();
-      for (const item of draggableList.value) {
-        if (seen.has(item.id)) continue;
-        if (!item.parentId) {
-          result.push(item);
-          seen.add(item.id);
-          const children = childMap.get(item.id) || [];
-          for (const child of children) {
-            result.push(child);
-            seen.add(child.id);
-          }
-        }
-      }
-      draggableList.value = result;
-    }
-  }
-  draggedItemId.value = null;
-
-  const parentIdChanges: Record<string, string | null> = {};
-  let currentParentId: string | null = null;
-
-  for (const item of draggableList.value) {
-    if (!item.parentId) {
-      currentParentId = item.id;
-    } else {
-      if (item.parentId !== currentParentId) {
-        parentIdChanges[item.id] = currentParentId;
-      }
-    }
-  }
-
-  const ids = draggableList.value.map((t) => t.id);
-  const hasChanges = Object.keys(parentIdChanges).length > 0;
-  emit("reorder", ids, hasChanges ? parentIdChanges : undefined);
-}
 
 function onAddTodo() {
   const trimmed = newTodoInput.value.trim();
@@ -208,6 +168,10 @@ function onSetTag(id: string, tagId: string | null) {
 function onAddSubTodo(parentId: string, content: string) {
   emit("add-sub-todo", parentId, content);
 }
+
+function onDeleteTodo(id: string) {
+  emit("delete-todo", id);
+}
 </script>
 
 <template>
@@ -223,37 +187,20 @@ function onAddSubTodo(parentId: string, content: string) {
       />
     </div>
 
-    <div ref="listContainerRef" class="flex flex-col">
-      <draggable
-        :list="draggableList"
-        item-key="id"
-        :animation="200"
-        ghost-class="opacity-50"
-        :force-fallback="true"
-        @start="onDragStart"
-        @end="onDragEnd"
-      >
-      <template #item="{ element }">
-        <div :data-todo-id="element.id">
-          <TodoItem
-            :key="element.id"
-            :todo="element"
-            :settings="settings"
-            :is-editing="editingId === element.id"
-            :edit-content="editContent"
-            :has-children="props.todos.some(t => t.parentId === element.id)"
-            :is-sub-task="!!element.parentId"
-            @toggle-complete="onToggleComplete(element.id)"
-            @start-edit="startEdit(element)"
-            @save-edit="(content: string) => saveEdit(content)"
-            @cancel-edit="cancelEdit"
-            @delete-todo="emit('delete-todo', element.id)"
-            @set-tag="(tagId: string | null) => onSetTag(element.id, tagId)"
-            @add-sub-todo="(content: string) => onAddSubTodo(element.id, content)"
-          />
-        </div>
-      </template>
-    </draggable>
+    <div class="flex flex-col">
+      <NestedTodoList
+        v-model="nestedTodos"
+        :settings="settings"
+        :editing-id="editingId"
+        :edit-content="editContent"
+        :toggle-complete="onToggleComplete"
+        :start-edit="startEdit"
+        :save-edit="saveEdit"
+        :cancel-edit="cancelEdit"
+        :delete-todo="onDeleteTodo"
+        :set-tag="onSetTag"
+        :add-sub-todo="onAddSubTodo"
+      />
     </div>
 
     <a-empty

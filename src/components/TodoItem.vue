@@ -107,14 +107,12 @@ const menuItems = computed<MenuItemType[]>(() => {
       children: tagMenuChildren.value,
     },
   ];
-  if (!props.isSubTask) {
-    items.push({
-      key: "subtask",
-      label: "子任务",
-      icon: h(PlusOutlined),
-      disabled: props.todo.completed,
-    });
-  }
+  items.push({
+    key: "subtask",
+    label: "子任务",
+    icon: h(PlusOutlined),
+    disabled: props.todo.completed,
+  });
   items.push({ type: "divider" });
   items.push({
     key: "delete",
