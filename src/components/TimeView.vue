@@ -44,11 +44,10 @@ const dayItems = computed(() => {
     return Array.from({ length: 7 }, (_, i) => {
       const d = start.add(i, "day");
       const key = d.format("YYYY-MM-DD");
-      const count = dayTodoCounts.value[key] || 0;
-      return {
-        key,
-        label: `${weekdays[i]} ${d.format("M月D日")}${count ? ` (${count})` : ""}`,
-      };
+        return {
+          key,
+          label: `${weekdays[i]} ${d.format("M月D日")}`,
+        };
     });
   } else {
     const start = currentDate.value.startOf("month");
@@ -57,10 +56,9 @@ const dayItems = computed(() => {
     const weekdays = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
     for (let d = start; d.isBefore(end) || d.isSame(end, "day"); d = d.add(1, "day")) {
       const key = d.format("YYYY-MM-DD");
-      const count = dayTodoCounts.value[key] || 0;
       items.push({
         key,
-        label: `${weekdays[d.day()]} ${d.format("M月D日")}${count ? ` (${count})` : ""}`,
+        label: `${weekdays[d.day()]} ${d.format("M月D日")}`,
       });
     }
     return items;
@@ -70,17 +68,6 @@ const dayItems = computed(() => {
 const selectedDayTodos = computed(() =>
   props.todos.filter((t) => t.completedAt && dayjs(t.completedAt).format("YYYY-MM-DD") === selectedDay.value)
 );
-
-const dayTodoCounts = computed(() => {
-  const counts: Record<string, number> = {};
-  for (const todo of props.todos) {
-    if (todo.completedAt) {
-      const day = dayjs(todo.completedAt).format("YYYY-MM-DD");
-      counts[day] = (counts[day] || 0) + 1;
-    }
-  }
-  return counts;
-});
 
 function onSelect({ key }: { key: string }) {
   selectedDay.value = key;
@@ -118,7 +105,7 @@ function onSelect({ key }: { key: string }) {
     </div>
 
     <div class="flex-1 flex overflow-hidden">
-      <div class="w-36 border-r border-[var(--border)] shrink-0 min-h-0 custom-scrollbar" style="overflow-y: auto; max-height: 100%;">
+      <div class="w-[150px] border-r border-[var(--border)] shrink-0 min-h-0 custom-scrollbar" style="overflow-y: auto; max-height: 100%;">
         <a-menu
           mode="inline"
           :items="dayItems"
