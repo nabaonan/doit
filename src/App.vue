@@ -13,7 +13,7 @@ import TimeView from "./components/TimeView.vue";
 import SettingsDialog from "./components/SettingsDialog.vue";
 import ReportDialog from "./components/ReportDialog.vue";
 import type { TodoItem, AppSettings } from "./types";
-import { init as initTodos, getAllTodos, addTodo, updateTodo, deleteTodo, reorderTodos } from "./services/todoService";
+import { init as initTodos, getAllTodos, addTodo, updateTodo, deleteTodo, reorderTodos, sortTodos } from "./services/todoService";
 import { init as initSettings, getSettings, saveSettings } from "./services/settingsService";
 
 const todos = ref<TodoItem[]>([]);
@@ -145,6 +145,7 @@ async function handleToggleComplete(id: string) {
   const newCompleted = !todo.completed;
   todo.completed = newCompleted;
   todo.completedAt = newCompleted ? new Date().toISOString() : null;
+  todos.value = sortTodos(todos.value);
   await updateTodo(id, {
     completed: newCompleted,
     completedAt: todo.completedAt,
@@ -152,7 +153,6 @@ async function handleToggleComplete(id: string) {
   if (todo.parentId) {
     await syncParentCompletion(todo.parentId);
   }
-  todos.value = [...todos.value];
 }
 
 async function syncParentCompletion(parentId: string) {
@@ -163,6 +163,7 @@ async function syncParentCompletion(parentId: string) {
   if (parent && parent.completed !== allCompleted) {
     parent.completed = allCompleted;
     parent.completedAt = allCompleted ? new Date().toISOString() : null;
+    todos.value = sortTodos(todos.value);
     await updateTodo(parentId, {
       completed: allCompleted,
       completedAt: parent.completedAt,

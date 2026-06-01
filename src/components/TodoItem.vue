@@ -252,7 +252,7 @@ function stopLongPress() {
               :disabled="hasChildren"
               class="shrink-0 todo-checkbox"
               @mousedown.stop
-              @change="onCheckboxClick"
+              @click.stop="onCheckboxClick"
             />
           </a-config-provider>
 

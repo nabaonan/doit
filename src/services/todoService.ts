@@ -45,7 +45,7 @@ export async function init(): Promise<void> {
   }
 }
 
-function sortTodos(todos: TodoItem[]): TodoItem[] {
+export function sortTodos(todos: TodoItem[]): TodoItem[] {
   const childMap = new Map<string, TodoItem[]>()
   for (const t of todos) {
     if (t.parentId) {

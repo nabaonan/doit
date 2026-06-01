@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from "vue";
+import { ref, watch, nextTick } from "vue";
 import NestedTodoList from "./NestedTodoList.vue";
 import type { TodoItem as TodoItemType, TodoItemNode, AppSettings } from "../types";
 import { flatToNested, nestedToFlat } from "../types";
@@ -61,11 +61,37 @@ function mergeNested(existing: TodoItemNode[], incoming: TodoItemNode[]) {
 watch(
   () => props.todos,
   (todos) => {
+    const items = document.querySelectorAll<HTMLElement>("[data-todo-id]");
+    const prevRects = new Map<string, DOMRect>();
+    items.forEach((el) => {
+      const id = el.getAttribute("data-todo-id");
+      if (id) prevRects.set(id, el.getBoundingClientRect());
+    });
+
     isProgrammaticUpdate = true;
     mergeNested(nestedTodos.value, flatToNested(todos));
-    setTimeout(() => {
+    nextTick(() => {
       isProgrammaticUpdate = false;
-    }, 0);
+      requestAnimationFrame(() => {
+        const newItems = document.querySelectorAll<HTMLElement>("[data-todo-id]");
+        newItems.forEach((el) => {
+          const id = el.getAttribute("data-todo-id");
+          if (!id) return;
+          const prev = prevRects.get(id);
+          if (!prev) return;
+          const curr = el.getBoundingClientRect();
+          const dx = prev.left - curr.left;
+          const dy = prev.top - curr.top;
+          if (dx === 0 && dy === 0) return;
+          el.style.transform = `translate(${dx}px, ${dy}px)`;
+          el.style.transition = "none";
+          requestAnimationFrame(() => {
+            el.style.transition = "transform 300ms ease";
+            el.style.transform = "";
+          });
+        });
+      });
+    });
   },
   { deep: true, immediate: true }
 );
