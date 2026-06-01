@@ -50,7 +50,7 @@ const activeTodos = computed(() =>
 );
 
 const completedTodos = computed(() =>
-  todos.value.filter((t) => t.completed)
+  todos.value.filter((t) => t.completed && t.completedAt && dayjs(t.completedAt).format("YYYY-MM-DD") !== todayStr.value)
 );
 
 provide("settings", settings);

@@ -3,7 +3,8 @@ import { ref, computed } from "vue";
 import dayjs from "dayjs";
 import isoWeek from "dayjs/plugin/isoWeek";
 import TodoItem from "./TodoItem.vue";
-import type { TodoItem as TodoItemType } from "../types";
+import type { TodoItem as TodoItemType, TodoItemNode } from "../types";
+import { flatToNested } from "../types";
 
 dayjs.extend(isoWeek);
 
@@ -65,9 +66,10 @@ const dayItems = computed(() => {
   }
 });
 
-const selectedDayTodos = computed(() =>
-  props.todos.filter((t) => t.completedAt && dayjs(t.completedAt).format("YYYY-MM-DD") === selectedDay.value)
-);
+const selectedDayNodes = computed<TodoItemNode[]>(() => {
+  const dayTodos = props.todos.filter((t) => t.completedAt && dayjs(t.completedAt).format("YYYY-MM-DD") === selectedDay.value);
+  return flatToNested(dayTodos);
+});
 
 function onSelect({ key }: { key: string }) {
   selectedDay.value = key;
@@ -116,18 +118,32 @@ function onSelect({ key }: { key: string }) {
       </div>
 
       <div class="flex-1 overflow-y-auto">
-        <div v-if="selectedDayTodos.length === 0" class="flex items-center justify-center h-full text-[var(--muted-foreground)] text-sm">
+        <div v-if="selectedDayNodes.length === 0" class="flex items-center justify-center h-full text-[var(--muted-foreground)] text-sm">
           该日期没有已完成的待办事项
         </div>
-        <TodoItem
-          v-for="todo in selectedDayTodos"
-          :key="todo.id"
-          :todo="todo"
-          :settings="{ completionMode: 'checkbox', longPressDuration: 3, theme: 'system', happyMode: false, addTodoShortcut: { key: 'Enter', ctrl: false, shift: false, alt: false, meta: false }, tags: [], cloudSync: { enabled: false, provider: 'local_folder', webdavUrl: '', webdavUsername: '', webdavPassword: '', localSyncPath: '' } }"
-          :is-editing="false"
-          :edit-content="''"
-          :readonly="true"
-        />
+        <template v-for="node in selectedDayNodes" :key="node.id">
+          <TodoItem
+            :todo="node"
+            :settings="{ completionMode: 'checkbox', longPressDuration: 3, theme: 'system', happyMode: false, addTodoShortcut: { key: 'Enter', ctrl: false, shift: false, alt: false, meta: false }, tags: [], cloudSync: { enabled: false, provider: 'local_folder', webdavUrl: '', webdavUsername: '', webdavPassword: '', localSyncPath: '' } }"
+            :is-editing="false"
+            :edit-content="''"
+            :readonly="true"
+            :has-children="node.children.length > 0"
+          />
+          <template v-if="node.children.length > 0">
+            <div v-for="child in node.children" :key="child.id" class="pl-6">
+              <TodoItem
+                :todo="child"
+                :settings="{ completionMode: 'checkbox', longPressDuration: 3, theme: 'system', happyMode: false, addTodoShortcut: { key: 'Enter', ctrl: false, shift: false, alt: false, meta: false }, tags: [], cloudSync: { enabled: false, provider: 'local_folder', webdavUrl: '', webdavUsername: '', webdavPassword: '', localSyncPath: '' } }"
+                :is-editing="false"
+                :edit-content="''"
+                :readonly="true"
+                :is-sub-task="true"
+                :depth="1"
+              />
+            </div>
+          </template>
+        </template>
       </div>
     </div>
   </div>
