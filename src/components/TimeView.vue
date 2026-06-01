@@ -107,7 +107,7 @@ function onSelect({ key }: { key: string }) {
     </div>
 
     <div class="flex-1 flex overflow-hidden">
-      <div class="w-[150px] border-r border-[var(--border)] shrink-0 min-h-0 custom-scrollbar" style="overflow-y: auto; max-height: 100%;">
+      <div class="w-[150px] border-r border-[var(--border)] shrink-0 min-h-0" style="overflow-y: auto; max-height: 100%;">
         <a-menu
           mode="inline"
           :items="dayItems"
