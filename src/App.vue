@@ -46,7 +46,7 @@ const currentView = ref<"today" | "time">("today");
 const todayStr = computed(() => dayjs().format("YYYY-MM-DD"));
 
 const activeTodos = computed(() =>
-  todos.value.filter((t) => dayjs(t.createdAt).format("YYYY-MM-DD") === todayStr.value)
+  todos.value.filter((t) => !t.completed || dayjs(t.completedAt).format("YYYY-MM-DD") === todayStr.value)
 );
 
 const completedTodos = computed(() =>
