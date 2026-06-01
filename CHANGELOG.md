@@ -1,5 +1,26 @@
 # Changelog
 
+## v0.1.25 (2026-06-01)
+
+### 新功能
+
+- 增加版本对比链接 (`f410093` by @内小子)
+
+### 文档更新
+
+- 更新 Changelog for v0.1.24 (`cfd5e63` by @github-actions[bot])
+
+### 构建/工具
+
+- release v0.1.25 (`9002052` by @内小子)
+
+### 其他变更
+
+- Merge branch 'main' of github.com:nabaonan/doit (`7467742` by @内小子)
+
+---
+
+
 ## v0.1.24 (2026-06-01)
 
 ### Bug 修复
