@@ -53,6 +53,12 @@ if (other.length > 0) {
   body += "\n## 📋 其他变更\n\n" + other.map((s) => `- ${s}`).join("\n")
 }
 
+const repoUrl = "https://github.com/nabaonan/doit"
+
+if (prevTag) {
+  body += `\n---\n**完整变更记录**: [${prevTag}...${tagName}](${repoUrl}/compare/${prevTag}...${tagName})`
+}
+
 const outputFile = process.env.GITHUB_OUTPUT
 if (outputFile) {
   const delim = `RELNOTES_${Date.now()}`
