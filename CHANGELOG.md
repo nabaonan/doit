@@ -1,5 +1,30 @@
 # Changelog
 
+## v0.1.27 (2026-06-02)
+
+### 新功能
+
+- 添加清空待办数据功能，优化子任务快捷键支持 (`42051f8` by @内小子)
+
+### Bug 修复
+
+- 修复win平台图标显示不对的问题 (`741339b` by @内小子)
+
+### 文档更新
+
+- 更新 Changelog for v0.1.26 (`af13241` by @github-actions[bot])
+
+### 构建/工具
+
+- release v0.1.27 (`431c771` by @内小子)
+
+### 其他变更
+
+- Merge branch 'main' of github.com:nabaonan/doit (`b50e926` by @内小子)
+
+---
+
+
 ## v0.1.26 (2026-06-01)
 
 ### Bug 修复
