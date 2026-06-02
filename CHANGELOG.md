@@ -1,5 +1,26 @@
 # Changelog
 
+## v0.1.29 (2026-06-02)
+
+### Bug 修复
+
+- 添加Windows NSIS安装包图标配置 (`f4969bc` by @内小子)
+
+### 文档更新
+
+- 更新 Changelog for v0.1.28 (`29d56f3` by @github-actions[bot])
+
+### 构建/工具
+
+- release v0.1.29 (`cad02cc` by @内小子)
+
+### 其他变更
+
+- Merge branch 'main' of github.com:nabaonan/doit (`65c46b6` by @内小子)
+
+---
+
+
 ## v0.1.28 (2026-06-02)
 
 ### 文档更新
