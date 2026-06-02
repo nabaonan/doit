@@ -2,6 +2,7 @@ import { execSync } from 'child_process'
 import { writeFileSync, mkdirSync, existsSync, rmSync } from 'fs'
 import { resolve, dirname } from 'path'
 import { fileURLToPath } from 'url'
+import { platform } from 'os'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const iconsDir = resolve(__dirname, '..', 'src-tauri', 'icons')
@@ -84,8 +85,14 @@ async function run() {
     console.log(`  ${filename} (${size}x${size})`)
   }
 
-  console.log('Generating icon.icns with iconutil...')
-  execSync(`iconutil -c icns "${iconsetDir}" -o "${resolve(iconsDir, 'icon.icns')}"`)
+  console.log('Generating icon.icns...')
+  if (platform() === 'darwin') {
+    execSync(`iconutil -c icns "${iconsetDir}" -o "${resolve(iconsDir, 'icon.icns')}"`)
+  } else {
+    const icnsPng = await sharp(svgBuffer).resize(256, 256).png().toBuffer()
+    writeFileSync(resolve(iconsDir, 'icon.icns'), icnsPng)
+    console.log('  icon.icns (256x256, PNG fallback)')
+  }
 
   console.log('Generating PNGs for tauri config...')
   for (const [filename, size] of Object.entries(finalFiles)) {
@@ -96,6 +103,10 @@ async function run() {
       .toFile(filepath)
     console.log(`  ${filename} (${size}x${size})`)
   }
+
+  console.log('Generating icon.png...')
+  await sharp(svgBuffer).resize(1024, 1024).png().toFile(resolve(iconsDir, 'icon.png'))
+  console.log('  icon.png (1024x1024)')
 
   console.log('Generating icon.ico...')
   const icoSizes = [16, 32, 48, 64, 128, 256]
