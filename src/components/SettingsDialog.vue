@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch, h } from "vue";
+import { Modal } from "antdv-next";
 import { KeyOutlined, SunOutlined, MoonOutlined, MonitorOutlined } from "@antdv-next/icons";
 import type { AppSettings, Tag } from "../types";
 
@@ -11,6 +12,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: "update:open", open: boolean): void;
   (e: "save", settings: AppSettings): void;
+  (e: "clear-data"): void;
 }>();
 
 const localSettings = ref<AppSettings>(JSON.parse(JSON.stringify(props.settings)));
@@ -122,6 +124,19 @@ function onSave() {
 
 function onCancel() {
   emit("update:open", false);
+}
+
+function confirmClearData() {
+  Modal.confirm({
+    title: "确定要清空所有待办数据吗？",
+    content: "此操作不可恢复，设置不会被清除。",
+    okText: "确认清空",
+    cancelText: "取消",
+    okButtonProps: { danger: true },
+    onOk: () => {
+      emit("clear-data");
+    },
+  });
 }
 </script>
 
@@ -298,6 +313,11 @@ function onCancel() {
           </div>
         </template>
       </div>
+    </div>
+
+    <div class="mb-6 pt-4 border-t border-[var(--border)]">
+      <h3 class="text-sm font-medium text-[var(--destructive)] mb-3">危险操作</h3>
+      <a-button danger block @click="confirmClearData">清空本地数据</a-button>
     </div>
 
     <div class="flex justify-end gap-2 pt-2">

@@ -160,9 +160,23 @@ function onCancel() {
 }
 
 function onKeydown(e: KeyboardEvent) {
-  if (e.key === "Enter") {
+  const sc = props.settings.addTodoShortcut;
+  if (!sc) {
+    if (e.key === "Enter") onSave();
+    return;
+  }
+  if (
+    e.key === sc.key &&
+    e.ctrlKey === sc.ctrl &&
+    e.shiftKey === sc.shift &&
+    e.altKey === sc.alt &&
+    e.metaKey === sc.meta
+  ) {
+    e.preventDefault();
     onSave();
-  } else if (e.key === "Escape") {
+    return;
+  }
+  if (e.key === "Escape") {
     onCancel();
   }
 }

@@ -13,7 +13,7 @@ import TimeView from "./components/TimeView.vue";
 import SettingsDialog from "./components/SettingsDialog.vue";
 import ReportDialog from "./components/ReportDialog.vue";
 import type { TodoItem, AppSettings } from "./types";
-import { init as initTodos, getAllTodos, addTodo, updateTodo, deleteTodo, reorderTodos, sortTodos } from "./services/todoService";
+import { init as initTodos, getAllTodos, addTodo, updateTodo, deleteTodo, reorderTodos, sortTodos, clearAllTodos } from "./services/todoService";
 import { init as initSettings, getSettings, saveSettings } from "./services/settingsService";
 
 const todos = ref<TodoItem[]>([]);
@@ -226,6 +226,11 @@ async function handleSaveSettings(newSettings: AppSettings) {
   settings.value = newSettings;
   showSettings.value = false;
 }
+
+async function handleClearData() {
+  await clearAllTodos();
+  todos.value = await getAllTodos();
+}
 </script>
 
 <template>
@@ -254,6 +259,7 @@ async function handleSaveSettings(newSettings: AppSettings) {
             v-model:open="showSettings"
             :settings="settings"
             @save="handleSaveSettings"
+            @clear-data="handleClearData"
           />
           <ReportDialog
             v-model:open="showReport"

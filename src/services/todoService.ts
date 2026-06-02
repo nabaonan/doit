@@ -188,6 +188,15 @@ export async function deleteTodo(id: string): Promise<void> {
   saveLocalTodos(todos.filter((t) => !idsToDelete.has(t.id)))
 }
 
+export async function clearAllTodos(): Promise<void> {
+  if (isTauri) {
+    if (!db) await loadDB()
+    await (db as { execute: (sql: string) => Promise<void> }).execute("DELETE FROM todos")
+    return
+  }
+  localStorage.removeItem(STORAGE_KEY)
+}
+
 export async function reorderTodos(ids: string[]): Promise<void> {
   if (isTauri) {
     if (!db) await loadDB()
