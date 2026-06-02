@@ -6,12 +6,15 @@ import { fileURLToPath } from "node:url"
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const root = resolve(__dirname, "..")
 
+const isMinor = process.argv.includes("--minor") || process.argv.includes("-m")
+const bumpType = isMinor ? "minor" : "patch"
+
 function run(cmd) {
   console.log(`> ${cmd}`)
   execSync(cmd, { cwd: root, stdio: "inherit" })
 }
 
-run('npm version patch -m "chore: release v%s"')
+run(`npm version ${bumpType} -m "chore: release v%s"`)
 
 const pkg = JSON.parse(readFileSync(resolve(root, "package.json"), "utf-8"))
 
