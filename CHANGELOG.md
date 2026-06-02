@@ -1,5 +1,26 @@
 # Changelog
 
+## v0.1.26 (2026-06-01)
+
+### Bug 修复
+
+- 筛选今日未完成和今日已完成的待办事项 (`57c40fe` by @内小子)
+
+### 文档更新
+
+- 更新 Changelog for v0.1.25 (`0f7622c` by @github-actions[bot])
+
+### 构建/工具
+
+- release v0.1.26 (`92642ea` by @内小子)
+
+### 其他变更
+
+- Merge branch 'main' of github.com:nabaonan/doit (`ce692fc` by @内小子)
+
+---
+
+
 ## v0.1.25 (2026-06-01)
 
 ### 新功能
