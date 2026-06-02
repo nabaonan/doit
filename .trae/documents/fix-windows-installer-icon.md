@@ -16,43 +16,39 @@ Windows x64 NSIS 安装包（setup 安装包）的图标显示为系统默认图
 
 | 文件 | 改动 |
 |------|------|
-| `src-tauri/icons/icon.ico` | 重新生成（用正确的 logo） |
+| `src-tauri/icons/icon.ico` | 重新生成（用 Tauri 官方工具） |
 | `src-tauri/icons/32x32.png` | 重新生成 |
 | `src-tauri/icons/128x128.png` | 重新生成 |
 | `src-tauri/icons/128x128@2x.png` | 重新生成 |
 | `src-tauri/icons/icon.icns` | 重新生成 |
 | `src-tauri/icons/icon.png` | 重新生成 |
+| `scripts/generate-icons.mjs` | 重写为使用 `tauri icon` 命令 |
 | `package.json` | 新增 `generate-icons` 脚本 |
 
 ## 实现步骤
 
 ### Step 1: 在 package.json 中添加脚本
 
-在 `package.json` 的 `scripts` 中添加：
+在 `package.json` 的 `scripts` 中添加 `generate-icons`。
 
-```json
-"generate-icons": "node scripts/generate-icons.mjs"
-```
+### Step 2: 重写 generate-icons.mjs
 
-### Step 2: 运行脚本生成图标
+改为先生成 1024x1024 的源 PNG，然后委托给 `npx tauri icon` 命令生成所有平台图标。Tauri 官方工具会生成正确格式的 `icon.ico`（包含 16/32/48/64/128/256 等多尺寸 PNG 的 ICO 容器）。
+
+### Step 3: 运行脚本生成图标
 
 ```bash
 npm run generate-icons
 ```
 
-这会重新生成所有图标文件，包括：
-- `icon.ico` — 用于 Windows 安装包图标和应用程序图标
-- `icon.icns` — 用于 macOS
-- `32x32.png`, `128x128.png`, `128x128@2x.png` — 用于 Tauri 配置中引用的 PNG 图标
-- `icon.png` — 通用图标
+### Step 4: 重新构建
 
-### Step 3: 验证
-
-确认 `icon.ico` 文件大小已更新（应比原来的 28KB 大，因为包含了 6 个尺寸的 PNG 数据）。
+```bash
+npm run tauri build
+```
 
 ## 注意事项
 
-- `generate-icons.mjs` 中的 SVG 设计包含绿色渐变背景 + 白色勾选标记，与应用的 logo 一致
-- 脚本会生成 16/32/48/64/128/256 共 6 个尺寸的 PNG 嵌入到 `icon.ico` 中，确保在不同缩放级别下都清晰
+- `tauri icon` 是 Tauri CLI 内置命令，能生成所有平台所需的正确图标格式
 - 重新生成图标后，需要重新运行 `npm run tauri build` 才能看到安装包图标的变化
-- `sharp` 依赖已在 `devDependencies` 中安装好（`sharp@^0.34.5`）
+- `icon.ico` 现在由 Tauri 官方工具生成，格式完全符合 Windows 要求
