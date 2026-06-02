@@ -1,5 +1,23 @@
 # Changelog
 
+## v0.1.28 (2026-06-02)
+
+### 文档更新
+
+- 更新 Changelog for v0.1.27 (`b347aec` by @github-actions[bot])
+
+### 构建/工具
+
+- release v0.1.28 (`3965215` by @内小子)
+- 重写图标生成脚本并更新所有应用图标 (`597fd8e` by @内小子)
+
+### 其他变更
+
+- Merge branch 'main' of github.com:nabaonan/doit (`e4e38c5` by @内小子)
+
+---
+
+
 ## v0.1.27 (2026-06-02)
 
 ### 新功能
