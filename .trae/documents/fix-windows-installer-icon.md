@@ -6,49 +6,41 @@ Windows x64 NSIS 安装包（setup 安装包）的图标显示为系统默认图
 
 ## 原因分析
 
-1. **`icon.ico` 文件内容错误**：当前 `src-tauri/icons/icon.ico` 是由旧的 `generate-icons.cjs` 脚本生成的，该脚本生成的是**纯蓝色方块**（`#6b8fff`），而不是真正的 logo 图标（绿色渐变背景 + 白色勾选标记）。
+1. **`icon.ico` 文件内容错误**：之前由旧脚本生成的 `icon.ico` 是纯蓝色方块，不是真正的 logo。
 
-2. **`generate-icons.mjs` 已有正确的 SVG logo**：该脚本包含正确的 logo 设计（绿色渐变圆角矩形 + 白色勾选路径），但从未被运行过，所以 `icon.ico` 仍然是旧版本。
-
-3. **Tauri 使用 `icon.ico` 作为 NSIS 安装包图标**：在 `tauri.conf.json` 中配置了 `icons/icon.ico`，Tauri 构建时会用这个文件作为安装包的图标。
+2. **缺少 `installerIcon` 配置**：Tauri 2 的 NSIS 配置需要显式指定 `installerIcon` 字段来设置安装包图标。当前 `tauri.conf.json` 中 `bundle.windows.nsis` 只配置了 `languages`，没有指定 `installerIcon`。
 
 ## 涉及文件
 
 | 文件 | 改动 |
 |------|------|
-| `src-tauri/icons/icon.ico` | 重新生成（用 Tauri 官方工具） |
-| `src-tauri/icons/32x32.png` | 重新生成 |
-| `src-tauri/icons/128x128.png` | 重新生成 |
-| `src-tauri/icons/128x128@2x.png` | 重新生成 |
-| `src-tauri/icons/icon.icns` | 重新生成 |
-| `src-tauri/icons/icon.png` | 重新生成 |
-| `scripts/generate-icons.mjs` | 重写为使用 `tauri icon` 命令 |
-| `package.json` | 新增 `generate-icons` 脚本 |
+| `src-tauri/tauri.conf.json` | 在 `bundle.windows.nsis` 中添加 `installerIcon` 配置 |
+| `src-tauri/icons/icon.ico` | 已用 Tauri 官方工具重新生成 |
+| `scripts/generate-icons.mjs` | 已重写为使用 `tauri icon` 命令 |
+| `package.json` | 已新增 `generate-icons` 脚本 |
 
 ## 实现步骤
 
-### Step 1: 在 package.json 中添加脚本
+### Step 1: 在 tauri.conf.json 中添加 installerIcon
 
-在 `package.json` 的 `scripts` 中添加 `generate-icons`。
+在 `bundle.windows.nsis` 中添加 `installerIcon` 字段，指向 `icons/icon.ico`：
 
-### Step 2: 重写 generate-icons.mjs
-
-改为先生成 1024x1024 的源 PNG，然后委托给 `npx tauri icon` 命令生成所有平台图标。Tauri 官方工具会生成正确格式的 `icon.ico`（包含 16/32/48/64/128/256 等多尺寸 PNG 的 ICO 容器）。
-
-### Step 3: 运行脚本生成图标
-
-```bash
-npm run generate-icons
+```json
+"nsis": {
+  "installerIcon": "icons/icon.ico",
+  "languages": [
+    "SimpChinese",
+    "English"
+  ]
+}
 ```
 
-### Step 4: 重新构建
+### Step 2: 提交并推送
 
-```bash
-npm run tauri build
-```
+将改动提交并推送到 GitHub，触发 CI 重新构建。
 
 ## 注意事项
 
-- `tauri icon` 是 Tauri CLI 内置命令，能生成所有平台所需的正确图标格式
-- 重新生成图标后，需要重新运行 `npm run tauri build` 才能看到安装包图标的变化
-- `icon.ico` 现在由 Tauri 官方工具生成，格式完全符合 Windows 要求
+- `installerIcon` 是 Tauri 2 NSIS 配置支持的字段，用于设置安装包（setup.exe）的图标
+- `icon.ico` 已由 `npx tauri icon` 命令生成，包含 16/32/48/64/128/256 等多尺寸 PNG
+- 需要重新运行 CI 构建才能看到效果
