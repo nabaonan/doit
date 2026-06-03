@@ -12,7 +12,8 @@ import TodoList from "./components/TodoList.vue";
 import TimeView from "./components/TimeView.vue";
 import SettingsDialog from "./components/SettingsDialog.vue";
 import ReportDialog from "./components/ReportDialog.vue";
-import type { TodoItem, AppSettings } from "./types";
+import CategoryDialog from "./components/CategoryDialog.vue";
+import type { TodoItem, AppSettings, Category } from "./types";
 import { init as initTodos, getAllTodos, addTodo, updateTodo, deleteTodo, reorderTodos, sortTodos, clearAllTodos } from "./services/todoService";
 import { init as initSettings, getSettings, saveSettings } from "./services/settingsService";
 
@@ -30,6 +31,7 @@ const settings = ref<AppSettings>({
     meta: false,
   },
   tags: [],
+  categories: [],
   cloudSync: {
     enabled: false,
     provider: "local_folder",
@@ -42,12 +44,20 @@ const settings = ref<AppSettings>({
 const showSettings = ref(false);
 const showReport = ref(false);
 const currentView = ref<"today" | "time">("today");
+const selectedCatId = ref<string>("__none__");
+const showCategoryDialog = ref(false);
 
 const todayStr = computed(() => dayjs().format("YYYY-MM-DD"));
 
-const activeTodos = computed(() =>
-  todos.value.filter((t) => !t.completed || dayjs(t.completedAt).format("YYYY-MM-DD") === todayStr.value)
-);
+const activeTodos = computed(() => {
+  let filtered = todos.value.filter((t) => !t.completed || dayjs(t.completedAt).format("YYYY-MM-DD") === todayStr.value);
+  if (selectedCatId.value === "__none__") {
+    filtered = filtered.filter((t) => t.catId === null);
+  } else {
+    filtered = filtered.filter((t) => t.catId === selectedCatId.value);
+  }
+  return filtered;
+});
 
 const completedTodos = computed(() =>
   todos.value.filter((t) => t.completed && t.completedAt && dayjs(t.completedAt).format("YYYY-MM-DD") !== todayStr.value)
@@ -110,6 +120,27 @@ watch(() => settings.value.theme, (newTheme) => {
   applyTheme(newTheme);
 });
 
+function handleSelectCat(catId: string | null) {
+  selectedCatId.value = catId ?? "__none__";
+}
+
+async function handleSaveCategories(categories: Category[]) {
+  const oldIds = new Set(settings.value.categories.map((c) => c.id));
+  const newIds = new Set(categories.map((c) => c.id));
+  const removedIds = [...oldIds].filter((id) => !newIds.has(id));
+  settings.value.categories = categories;
+  await saveSettings(settings.value);
+  if (removedIds.length > 0) {
+    for (const todo of todos.value) {
+      if (todo.catId && removedIds.includes(todo.catId)) {
+        await updateTodo(todo.id, { catId: null });
+      }
+    }
+    todos.value = await getAllTodos();
+  }
+  showCategoryDialog.value = false;
+}
+
 async function handleAddTodo(content: string) {
   const newTodo: TodoItem = {
     id: crypto.randomUUID(),
@@ -119,6 +150,7 @@ async function handleAddTodo(content: string) {
     completedAt: null,
     order: todos.value.length,
     tagId: null,
+    catId: null,
     parentId: null,
   };
   await addTodo(newTodo);
@@ -133,6 +165,27 @@ async function handleUpdateTodo(id: string, content: string) {
 async function handleSetTag(id: string, tagId: string | null) {
   await updateTodo(id, { tagId });
   todos.value = await getAllTodos();
+}
+
+async function handleSetCat(id: string, catId: string | null) {
+  const idsToUpdate = [id];
+  const childIds = getDescendantIds(id);
+  idsToUpdate.push(...childIds);
+  for (const todoId of idsToUpdate) {
+    await updateTodo(todoId, { catId });
+  }
+  todos.value = await getAllTodos();
+}
+
+function getDescendantIds(parentId: string): string[] {
+  const ids: string[] = [];
+  for (const t of todos.value) {
+    if (t.parentId === parentId) {
+      ids.push(t.id);
+      ids.push(...getDescendantIds(t.id));
+    }
+  }
+  return ids;
 }
 
 async function handleToggleComplete(id: string) {
@@ -210,6 +263,7 @@ async function handleAddSubTodo(parentId: string, content: string) {
     completedAt: null,
     order: siblings.length,
     tagId: null,
+    catId: null,
     parentId,
   };
   await addTodo(newTodo);
@@ -238,7 +292,15 @@ async function handleClearData() {
     <a-config-provider :theme="{ algorithm: currentAlgorithm }" :wave="wave" :locale="zhCN">
       <a-app>
         <div class="flex flex-col h-screen bg-[var(--background)]">
-          <TitleBar @open-settings="showSettings = true" @open-report="showReport = true" @update:view="(v) => currentView = v as 'today' | 'time'" />
+          <TitleBar
+            :categories="settings.categories"
+            :selected-cat-id="selectedCatId"
+            @open-settings="showSettings = true"
+            @open-report="showReport = true"
+            @update:view="(v) => currentView = v as 'today' | 'time'"
+            @select-cat="handleSelectCat"
+            @manage-categories="showCategoryDialog = true"
+          />
           <TodoList
             v-if="currentView === 'today'"
             :todos="activeTodos"
@@ -249,6 +311,7 @@ async function handleClearData() {
             @reorder="handleReorder"
             @delete-todo="handleDeleteTodo"
             @set-tag="handleSetTag"
+            @set-cat="handleSetCat"
             @add-sub-todo="handleAddSubTodo"
           />
           <TimeView
@@ -264,6 +327,12 @@ async function handleClearData() {
           <ReportDialog
             v-model:open="showReport"
             :todos="todos"
+          />
+          <CategoryDialog
+            v-model:open="showCategoryDialog"
+            :categories="settings.categories"
+            :todos="todos"
+            @save="handleSaveCategories"
           />
         </div>
       </a-app>

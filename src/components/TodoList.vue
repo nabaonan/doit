@@ -16,6 +16,7 @@ const emit = defineEmits<{
   (e: "reorder", ids: string[], parentIds?: Record<string, string | null>): void;
   (e: "delete-todo", id: string): void;
   (e: "set-tag", id: string, tagId: string | null): void;
+  (e: "set-cat", id: string, catId: string | null): void;
   (e: "add-sub-todo", parentId: string, content: string): void;
 }>();
 
@@ -191,6 +192,10 @@ function onSetTag(id: string, tagId: string | null) {
   emit("set-tag", id, tagId);
 }
 
+function onSetCat(id: string, catId: string | null) {
+  emit("set-cat", id, catId);
+}
+
 function onAddSubTodo(parentId: string, content: string) {
   emit("add-sub-todo", parentId, content);
 }
@@ -225,6 +230,7 @@ function onDeleteTodo(id: string) {
         :cancel-edit="cancelEdit"
         :delete-todo="onDeleteTodo"
         :set-tag="onSetTag"
+        :set-cat="onSetCat"
         :add-sub-todo="onAddSubTodo"
       />
     </div>

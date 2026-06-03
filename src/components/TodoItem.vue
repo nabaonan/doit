@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch, h, nextTick } from "vue";
-import { EditOutlined, DeleteOutlined, TagOutlined, PlusOutlined } from "@antdv-next/icons";
+import { EditOutlined, DeleteOutlined, TagOutlined, PlusOutlined, FolderOutlined } from "@antdv-next/icons";
 import type { MenuItemType } from "antdv-next";
 import dayjs from "dayjs";
 import type { TodoItem as TodoItemType, AppSettings } from "../types";
@@ -23,6 +23,7 @@ const emit = defineEmits<{
   (e: "cancel-edit"): void;
   (e: "delete-todo"): void;
   (e: "set-tag", tagId: string | null): void;
+  (e: "set-cat", catId: string | null): void;
   (e: "add-sub-todo", content: string): void;
 }>();
 
@@ -93,6 +94,40 @@ const tagMenuChildren = computed(() => {
   return items;
 });
 
+const catMenuChildren = computed(() => {
+  const cats = props.settings.categories || [];
+  if (cats.length === 0) {
+    return [
+      {
+        key: "cat-placeholder",
+        label: "暂无分类",
+        disabled: true,
+        icon: h("span", {
+          class: "inline-block w-2.5 h-2.5 rounded-full border border-[var(--border)] shrink-0",
+        }),
+      },
+    ];
+  }
+  const items: MenuItemType[] = [
+    {
+      key: "cat-null",
+      label: "不分类",
+    },
+    { type: "divider" },
+  ];
+  for (const cat of cats) {
+    items.push({
+      key: `cat-${cat.id}`,
+      label: cat.name,
+      icon: h("span", {
+        class: "inline-block w-2.5 h-2.5 rounded-full shrink-0",
+        style: { backgroundColor: cat.color },
+      }),
+    });
+  }
+  return items;
+});
+
 const menuItems = computed<MenuItemType[]>(() => {
   const items: MenuItemType[] = [
     {
@@ -106,6 +141,13 @@ const menuItems = computed<MenuItemType[]>(() => {
       label: "设置标签",
       icon: h(TagOutlined),
       children: tagMenuChildren.value,
+    },
+    {
+      key: "cat",
+      label: "移动到分类",
+      icon: h(FolderOutlined),
+      disabled: !!props.isSubTask,
+      children: catMenuChildren.value,
     },
   ];
   items.push({
@@ -137,6 +179,10 @@ function onMenuClick({ key }: { key: string }) {
     emit("set-tag", null);
   } else if (key.startsWith("tag-")) {
     emit("set-tag", key.replace("tag-", ""));
+  } else if (key === "cat-null") {
+    emit("set-cat", null);
+  } else if (key.startsWith("cat-")) {
+    emit("set-cat", key.replace("cat-", ""));
   }
 }
 

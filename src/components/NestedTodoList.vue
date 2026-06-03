@@ -18,6 +18,7 @@ const props = defineProps<{
   cancelEdit: () => void;
   deleteTodo: (id: string) => void;
   setTag: (id: string, tagId: string | null) => void;
+  setCat: (id: string, catId: string | null) => void;
   addSubTodo: (parentId: string, content: string) => void;
 }>();
 
@@ -59,6 +60,7 @@ const list = computed({
         @cancel-edit="cancelEdit"
         @delete-todo="deleteTodo(element.id)"
         @set-tag="(tagId: string | null) => setTag(element.id, tagId)"
+        @set-cat="(catId: string | null) => setCat(element.id, catId)"
         @add-sub-todo="(content: string) => addSubTodo(element.id, content)"
       />
       <NestedTodoList
@@ -74,6 +76,7 @@ const list = computed({
         :cancel-edit="cancelEdit"
         :delete-todo="deleteTodo"
         :set-tag="setTag"
+        :set-cat="setCat"
         :add-sub-todo="addSubTodo"
       />
     </div>

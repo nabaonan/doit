@@ -6,6 +6,7 @@ export interface TodoItem {
   completedAt: string | null
   order: number
   tagId: string | null
+  catId: string | null
   parentId: string | null
 }
 
@@ -17,6 +18,7 @@ export interface TodoItemNode {
   completedAt: string | null
   order: number
   tagId: string | null
+  catId: string | null
   parentId: string | null
   children: TodoItemNode[]
 }
@@ -72,6 +74,12 @@ export interface Tag {
   color: string
 }
 
+export interface Category {
+  id: string
+  name: string
+  color: string
+}
+
 export interface AppSettings {
   completionMode: "checkbox" | "longpress"
   longPressDuration: number
@@ -79,6 +87,7 @@ export interface AppSettings {
   happyMode: boolean
   addTodoShortcut: ShortcutConfig
   tags: Tag[]
+  categories: Category[]
   cloudSync: {
     enabled: boolean
     provider: "webdav" | "local_folder"
