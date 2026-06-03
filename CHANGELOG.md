@@ -1,5 +1,31 @@
 # Changelog
 
+## v0.1.30 (2026-06-03)
+
+### 新功能
+
+- 增加分类功能 (`52ac52c` by @内小子)
+
+### Bug 修复
+
+- 优化今日待办时间导致的显示问题 (`1ace987` by @内小子)
+
+### 文档更新
+
+- 更新 Changelog for v0.1.29 (`b8c4483` by @github-actions[bot])
+
+### 构建/工具
+
+- release v0.1.30 (`2d36173` by @内小子)
+- 新增minor版本发布支持 (`ed6991d` by @内小子)
+
+### 其他变更
+
+- Merge branch 'main' of github.com:nabaonan/doit (`634ff8c` by @内小子)
+
+---
+
+
 ## v0.1.29 (2026-06-02)
 
 ### Bug 修复
