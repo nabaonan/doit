@@ -49,8 +49,16 @@ const showCategoryDialog = ref(false);
 
 const todayStr = computed(() => dayjs().format("YYYY-MM-DD"));
 
+function toLocalDateStr(isoStr: string): string {
+  const d = new Date(isoStr);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 const activeTodos = computed(() => {
-  let filtered = todos.value.filter((t) => !t.completed || dayjs(t.completedAt).format("YYYY-MM-DD") === todayStr.value);
+  let filtered = todos.value.filter((t) => !t.completed || (t.completedAt && toLocalDateStr(t.completedAt) === todayStr.value));
   if (selectedCatId.value === "__none__") {
     filtered = filtered.filter((t) => t.catId === null);
   } else {
@@ -60,7 +68,7 @@ const activeTodos = computed(() => {
 });
 
 const completedTodos = computed(() =>
-  todos.value.filter((t) => t.completed && t.completedAt && dayjs(t.completedAt).format("YYYY-MM-DD") !== todayStr.value)
+  todos.value.filter((t) => t.completed && t.completedAt && toLocalDateStr(t.completedAt) !== todayStr.value)
 );
 
 provide("settings", settings);
