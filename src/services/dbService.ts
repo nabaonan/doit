@@ -1,5 +1,4 @@
 import { getDb, closeDb } from "./db"
-import { isTauri } from "./tauriEnv"
 import dayjs from "dayjs"
 
 interface BackupData {
@@ -10,7 +9,7 @@ interface BackupData {
 }
 
 export async function exportDatabase(): Promise<void> {
-  if (isTauri) {
+  try {
     const { appConfigDir } = await import("@tauri-apps/api/path")
     const { save } = await import("@tauri-apps/plugin-dialog")
     const { copyFile } = await import("@tauri-apps/plugin-fs")
@@ -27,6 +26,8 @@ export async function exportDatabase(): Promise<void> {
 
     await copyFile(dbPath, filePath)
     return
+  } catch {
+    // 非 Tauri 环境，走浏览器 JSON 导出
   }
 
   const todosJson = localStorage.getItem("doit_todos")
@@ -49,7 +50,7 @@ export async function exportDatabase(): Promise<void> {
 }
 
 export async function importDatabase(): Promise<void> {
-  if (isTauri) {
+  try {
     const { appConfigDir } = await import("@tauri-apps/api/path")
     const { open } = await import("@tauri-apps/plugin-dialog")
     const { readFile, writeFile } = await import("@tauri-apps/plugin-fs")
@@ -72,6 +73,8 @@ export async function importDatabase(): Promise<void> {
 
     await getDb()
     return
+  } catch {
+    // 非 Tauri 环境，走浏览器 JSON 导入
   }
 
   const input = document.createElement("input")
