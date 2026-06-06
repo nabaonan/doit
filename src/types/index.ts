@@ -80,11 +80,14 @@ export interface Category {
   color: string
 }
 
+export type FontFamilyOption = "default" | "cartoon"
+
 export interface AppSettings {
   completionMode: "checkbox" | "longpress"
   longPressDuration: number
   theme: "system" | "light" | "dark"
   happyMode: boolean
+  fontFamily: FontFamilyOption
   addTodoShortcut: ShortcutConfig
   tags: Tag[]
   categories: Category[]

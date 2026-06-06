@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "@fontsource/zcool-xiaowei/index.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -81,4 +82,12 @@ html, body, #app {
 }
 ::-webkit-scrollbar-thumb:hover {
   background: var(--muted-foreground);
+}
+
+.font-cartoon {
+  font-family: 'ZCOOL XiaoWei', 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+}
+
+.font-cartoon * {
+  font-family: inherit;
 }

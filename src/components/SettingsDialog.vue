@@ -2,7 +2,7 @@
 import { ref, computed, onMounted, onUnmounted, watch, h } from "vue";
 import { Modal } from "antdv-next";
 import { KeyOutlined, SunOutlined, MoonOutlined, MonitorOutlined } from "@antdv-next/icons";
-import type { AppSettings, Tag } from "../types";
+import type { AppSettings, Tag, FontFamilyOption } from "../types";
 
 const props = defineProps<{
   open: boolean;
@@ -166,6 +166,18 @@ function confirmClearData() {
         <a-radio value="dark">
           <MoonOutlined class="mr-1" :style="{ fontSize: '14px' }" />
           深色模式
+        </a-radio>
+      </a-radio-group>
+    </div>
+
+    <div class="mb-6">
+      <h3 class="text-sm font-medium text-[var(--muted-foreground)] mb-3">字体</h3>
+      <a-radio-group v-model:value="localSettings.fontFamily" class="flex flex-col gap-2">
+        <a-radio value="default">
+          <span class="font-sans">系统默认</span>
+        </a-radio>
+        <a-radio value="cartoon">
+          <span style="font-family: 'ZCOOL XiaoWei', sans-serif;">卡通字体 (小薇体)</span>
         </a-radio>
       </a-radio-group>
     </div>

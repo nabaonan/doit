@@ -24,6 +24,7 @@ const settings = ref<AppSettings>({
   longPressDuration: 3,
   theme: "system",
   happyMode: false,
+  fontFamily: "default",
   addTodoShortcut: {
     key: "Enter",
     ctrl: false,
@@ -318,7 +319,7 @@ async function handleImportDb() {
   <HappyProvider :enabled="settings.happyMode" v-slot="{ wave }">
     <a-config-provider :theme="{ algorithm: currentAlgorithm }" :wave="wave" :locale="zhCN">
       <a-app>
-        <div class="flex flex-col h-screen bg-[var(--background)]">
+        <div class="flex flex-col h-screen bg-[var(--background)]" :class="settings.fontFamily === 'cartoon' ? 'font-cartoon' : ''">
           <TitleBar
             :categories="settings.categories"
             :selected-cat-id="selectedCatId"

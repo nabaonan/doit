@@ -8,6 +8,7 @@ const defaultSettings: AppSettings = {
   longPressDuration: 3,
   theme: "system",
   happyMode: false,
+  fontFamily: "default",
   addTodoShortcut: {
     key: "Enter",
     ctrl: false,
@@ -61,6 +62,7 @@ export async function getSettings(): Promise<AppSettings> {
       longPressDuration: kv["longPressDuration"] ? Number(kv["longPressDuration"]) : 3,
       theme: (kv["theme"] as "system" | "light" | "dark") || "system",
       happyMode: kv["happyMode"] === "true",
+      fontFamily: (kv["fontFamily"] as "default" | "cartoon") || "default",
       addTodoShortcut: kv["addTodoShortcut"]
         ? JSON.parse(kv["addTodoShortcut"])
         : { ...defaultSettings.addTodoShortcut },
@@ -99,6 +101,10 @@ export async function saveSettings(settings: AppSettings): Promise<void> {
     await (db as { execute: (sql: string, params: unknown[]) => Promise<void> }).execute("INSERT INTO settings (key, value) VALUES ($1, $2)", [
       "happyMode",
       String(settings.happyMode),
+    ])
+    await (db as { execute: (sql: string, params: unknown[]) => Promise<void> }).execute("INSERT INTO settings (key, value) VALUES ($1, $2)", [
+      "fontFamily",
+      settings.fontFamily,
     ])
     await (db as { execute: (sql: string, params: unknown[]) => Promise<void> }).execute("INSERT INTO settings (key, value) VALUES ($1, $2)", [
       "addTodoShortcut",
