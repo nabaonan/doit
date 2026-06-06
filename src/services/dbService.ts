@@ -41,10 +41,31 @@ export async function exportDatabase(): Promise<void> {
   }
 
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" })
+  const fileName = `doit-backup-${dayjs().format("YYYY-MM-DD")}.json`
+
+  // 尝试使用 File System Access API (现代浏览器支持)
+  try {
+    const handle = await (window as any).showSaveFilePicker({
+      suggestedName: fileName,
+      types: [
+        {
+          description: "JSON Backup",
+          accept: { "application/json": [".json"] },
+        },
+      ],
+    })
+    const writable = await handle.createWritable()
+    await writable.write(blob)
+    await writable.close()
+    return
+  } catch {
+    // 如果用户取消或浏览器不支持，fallback 到传统下载
+  }
+
   const url = URL.createObjectURL(blob)
   const a = document.createElement("a")
   a.href = url
-  a.download = `doit-backup-${dayjs().format("YYYY-MM-DD")}.json`
+  a.download = fileName
   a.click()
   URL.revokeObjectURL(url)
 }
