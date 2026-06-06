@@ -13,6 +13,8 @@ const emit = defineEmits<{
   (e: "update:open", open: boolean): void;
   (e: "save", settings: AppSettings): void;
   (e: "clear-data"): void;
+  (e: "export-db"): void;
+  (e: "import-db"): void;
 }>();
 
 const localSettings = ref<AppSettings>(JSON.parse(JSON.stringify(props.settings)));
@@ -312,6 +314,14 @@ function confirmClearData() {
             />
           </div>
         </template>
+      </div>
+    </div>
+
+    <div class="mb-6 pt-4 border-t border-[var(--border)]">
+      <h3 class="text-sm font-medium text-[var(--foreground)] mb-3">数据管理</h3>
+      <div class="flex flex-col gap-2">
+        <a-button @click="emit('export-db')">导出数据库</a-button>
+        <a-button @click="emit('import-db')">导入数据库</a-button>
       </div>
     </div>
 

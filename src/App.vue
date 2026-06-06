@@ -16,6 +16,7 @@ import CategoryDialog from "./components/CategoryDialog.vue";
 import type { TodoItem, AppSettings, Category } from "./types";
 import { init as initTodos, getAllTodos, addTodo, updateTodo, deleteTodo, reorderTodos, sortTodos, clearAllTodos } from "./services/todoService";
 import { init as initSettings, getSettings, saveSettings } from "./services/settingsService";
+import { exportDatabase, importDatabase } from "./services/dbService";
 
 const todos = ref<TodoItem[]>([]);
 const settings = ref<AppSettings>({
@@ -293,6 +294,24 @@ async function handleClearData() {
   await clearAllTodos();
   todos.value = await getAllTodos();
 }
+
+async function handleExportDb() {
+  try {
+    await exportDatabase();
+  } catch (e) {
+    console.error("导出数据库失败", e);
+  }
+}
+
+async function handleImportDb() {
+  try {
+    await importDatabase();
+    todos.value = await getAllTodos();
+    settings.value = await getSettings();
+  } catch (e) {
+    console.error("导入数据库失败", e);
+  }
+}
 </script>
 
 <template>
@@ -331,6 +350,8 @@ async function handleClearData() {
             :settings="settings"
             @save="handleSaveSettings"
             @clear-data="handleClearData"
+            @export-db="handleExportDb"
+            @import-db="handleImportDb"
           />
           <ReportDialog
             v-model:open="showReport"

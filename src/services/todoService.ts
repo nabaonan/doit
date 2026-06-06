@@ -1,26 +1,10 @@
 import type { TodoItem } from "../types"
-import { isTauri } from "./tauriEnv"
-
-let db: unknown = null
+import { getDb } from "./db"
 
 const STORAGE_KEY = "doit_todos"
 
-async function loadDB() {
-  const Database = (await import("@tauri-apps/plugin-sql")).default
-  db = await Database.load("sqlite:doit.db")
-  await (db as { execute: (sql: string) => Promise<void> }).execute(
-    `CREATE TABLE IF NOT EXISTS todos (
-      id TEXT PRIMARY KEY,
-      content TEXT NOT NULL,
-      completed INTEGER NOT NULL DEFAULT 0,
-      created_at TEXT NOT NULL,
-      completed_at TEXT,
-      sort_order INTEGER NOT NULL DEFAULT 0,
-      tag_id TEXT,
-      cat_id TEXT,
-      parent_id TEXT
-    )`
-  )
+export async function init(): Promise<void> {
+  await getDb()
 }
 
 function getLocalTodos(): TodoItem[] {
@@ -36,16 +20,6 @@ function getLocalTodos(): TodoItem[] {
 
 function saveLocalTodos(todos: TodoItem[]) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(todos))
-}
-
-let initialized = false
-
-export async function init(): Promise<void> {
-  if (initialized) return
-  initialized = true
-  if (isTauri) {
-    await loadDB()
-  }
 }
 
 export function sortTodos(todos: TodoItem[]): TodoItem[] {
@@ -81,8 +55,8 @@ export function sortTodos(todos: TodoItem[]): TodoItem[] {
 }
 
 export async function getAllTodos(): Promise<TodoItem[]> {
-  if (isTauri) {
-    if (!db) await loadDB()
+  const db = await getDb()
+  if (db) {
     const rows = await (db as { select: <T>(sql: string) => Promise<T> }).select<Array<{
       id: string
       content: string
@@ -110,8 +84,8 @@ export async function getAllTodos(): Promise<TodoItem[]> {
 }
 
 export async function addTodo(item: TodoItem): Promise<void> {
-  if (isTauri) {
-    if (!db) await loadDB()
+  const db = await getDb()
+  if (db) {
     await (db as { execute: (sql: string, params: unknown[]) => Promise<void> }).execute(
       "INSERT INTO todos (id, content, completed, created_at, completed_at, sort_order, tag_id, cat_id, parent_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
       [item.id, item.content, item.completed ? 1 : 0, item.createdAt, item.completedAt, item.order, item.tagId, item.catId, item.parentId]
@@ -124,9 +98,8 @@ export async function addTodo(item: TodoItem): Promise<void> {
 }
 
 export async function updateTodo(id: string, data: Partial<TodoItem>): Promise<void> {
-  if (isTauri) {
-    if (!db) await loadDB()
-
+  const db = await getDb()
+  if (db) {
     const setClauses: string[] = []
     const params: unknown[] = []
 
@@ -182,8 +155,8 @@ export async function updateTodo(id: string, data: Partial<TodoItem>): Promise<v
 }
 
 export async function deleteTodo(id: string): Promise<void> {
-  if (isTauri) {
-    if (!db) await loadDB()
+  const db = await getDb()
+  if (db) {
     await (db as { execute: (sql: string, params: unknown[]) => Promise<void> }).execute("DELETE FROM todos WHERE parent_id = $1", [id])
     await (db as { execute: (sql: string, params: unknown[]) => Promise<void> }).execute("DELETE FROM todos WHERE id = $1", [id])
     return
@@ -198,8 +171,8 @@ export async function deleteTodo(id: string): Promise<void> {
 }
 
 export async function clearAllTodos(): Promise<void> {
-  if (isTauri) {
-    if (!db) await loadDB()
+  const db = await getDb()
+  if (db) {
     await (db as { execute: (sql: string) => Promise<void> }).execute("DELETE FROM todos")
     return
   }
@@ -207,8 +180,8 @@ export async function clearAllTodos(): Promise<void> {
 }
 
 export async function reorderTodos(ids: string[]): Promise<void> {
-  if (isTauri) {
-    if (!db) await loadDB()
+  const db = await getDb()
+  if (db) {
     for (let i = 0; i < ids.length; i++) {
       await (db as { execute: (sql: string, params: unknown[]) => Promise<void> }).execute("UPDATE todos SET sort_order = $1 WHERE id = $2", [i, ids[i]])
     }

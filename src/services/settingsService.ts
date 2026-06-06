@@ -1,7 +1,5 @@
 import type { AppSettings } from "../types"
-import { isTauri } from "./tauriEnv"
-
-let db: unknown = null
+import { getDb } from "./db"
 
 const STORAGE_KEY = "doit_settings"
 
@@ -29,15 +27,8 @@ const defaultSettings: AppSettings = {
   },
 }
 
-async function loadDB() {
-  const Database = (await import("@tauri-apps/plugin-sql")).default
-  db = await Database.load("sqlite:doit.db")
-  await (db as { execute: (sql: string) => Promise<void> }).execute(
-    `CREATE TABLE IF NOT EXISTS settings (
-      key TEXT PRIMARY KEY,
-      value TEXT NOT NULL
-    )`
-  )
+export async function init(): Promise<void> {
+  await getDb()
 }
 
 function getLocalSettings(): AppSettings {
@@ -53,20 +44,9 @@ function saveLocalSettings(settings: AppSettings) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(settings))
 }
 
-let initialized = false
-
-export async function init(): Promise<void> {
-  if (initialized) return
-  initialized = true
-  if (isTauri) {
-    await loadDB()
-  }
-}
-
 export async function getSettings(): Promise<AppSettings> {
-  if (isTauri) {
-    if (!db) await loadDB()
-
+  const db = await getDb()
+  if (db) {
     const rows = await (db as { select: <T>(sql: string) => Promise<T> }).select<Array<{ key: string; value: string }>>(
       "SELECT key, value FROM settings"
     )
@@ -100,9 +80,8 @@ export async function getSettings(): Promise<AppSettings> {
 }
 
 export async function saveSettings(settings: AppSettings): Promise<void> {
-  if (isTauri) {
-    if (!db) await loadDB()
-
+  const db = await getDb()
+  if (db) {
     await (db as { execute: (sql: string) => Promise<void> }).execute("DELETE FROM settings")
 
     await (db as { execute: (sql: string, params: unknown[]) => Promise<void> }).execute("INSERT INTO settings (key, value) VALUES ($1, $2)", [
