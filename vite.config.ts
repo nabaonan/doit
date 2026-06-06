@@ -8,16 +8,9 @@ export default defineConfig({
   plugins: [vue(), tailwindcss()],
   clearScreen: false,
   server: {
-    port: 5173,
+    port: 8443,
     strictPort: true,
-    host: host || false,
-    hmr: host
-      ? {
-          protocol: "ws",
-          host,
-          port: 1421,
-        }
-      : undefined,
+    host: "127.0.0.1",
     watch: {
       ignored: ["**/src-tauri/**"],
     },

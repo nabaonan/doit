@@ -192,7 +192,6 @@ function onCheckboxClick() {
 
 function onDblClick() {
   if (props.todo.completed) return;
-  if (props.hasChildren) return;
   emit("start-edit");
 }
 
