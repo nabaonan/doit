@@ -2,7 +2,7 @@
 import { ref, computed, onMounted, onUnmounted, watch, h } from "vue";
 import { Modal } from "antdv-next";
 import { KeyOutlined, SunOutlined, MoonOutlined, MonitorOutlined } from "@antdv-next/icons";
-import type { AppSettings, Tag, FontFamilyOption } from "../types";
+import type { AppSettings, Tag } from "../types";
 
 const props = defineProps<{
   open: boolean;
