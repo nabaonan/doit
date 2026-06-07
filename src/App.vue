@@ -13,6 +13,7 @@ import TimeView from "./components/TimeView.vue";
 import SettingsDialog from "./components/SettingsDialog.vue";
 import ReportDialog from "./components/ReportDialog.vue";
 import CategoryDialog from "./components/CategoryDialog.vue";
+import BackupDialog from "./components/BackupDialog.vue";
 import type { TodoItem, AppSettings, Category } from "./types";
 import { init as initTodos, getAllTodos, addTodo, updateTodo, deleteTodo, reorderTodos, sortTodos, clearAllTodos } from "./services/todoService";
 import { init as initSettings, getSettings, saveSettings } from "./services/settingsService";
@@ -45,6 +46,7 @@ const settings = ref<AppSettings>({
 });
 const showSettings = ref(false);
 const showReport = ref(false);
+const showBackup = ref(false);
 const currentView = ref<"today" | "time">("today");
 const selectedCatId = ref<string>("__none__");
 const showCategoryDialog = ref(false);
@@ -313,6 +315,17 @@ async function handleImportDb() {
     console.error("导入数据库失败", e);
   }
 }
+
+async function handleRestoreBackup(data: { todos: TodoItem[]; settings: AppSettings }) {
+  await clearAllTodos();
+  for (const todo of data.todos) {
+    await addTodo(todo);
+  }
+  await saveSettings(data.settings);
+  todos.value = await getAllTodos();
+  settings.value = await getSettings();
+  showBackup.value = false;
+}
 </script>
 
 <template>
@@ -325,6 +338,7 @@ async function handleImportDb() {
             :selected-cat-id="selectedCatId"
             @open-settings="showSettings = true"
             @open-report="showReport = true"
+            @open-backup="showBackup = true"
             @update:view="(v) => currentView = v as 'today' | 'time'"
             @select-cat="handleSelectCat"
             @manage-categories="showCategoryDialog = true"
@@ -363,6 +377,12 @@ async function handleImportDb() {
             :categories="settings.categories"
             :todos="todos"
             @save="handleSaveCategories"
+          />
+          <BackupDialog
+            v-model:open="showBackup"
+            :todos="todos"
+            :settings="settings"
+            @restore="handleRestoreBackup"
           />
         </div>
       </a-app>

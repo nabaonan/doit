@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { FileTextOutlined, SettingOutlined, AppstoreOutlined } from "@antdv-next/icons";
+import { FileTextOutlined, SettingOutlined, AppstoreOutlined, CloudUploadOutlined } from "@antdv-next/icons";
 import { ref, computed } from "vue";
 import type { Category } from "../types";
 
@@ -11,6 +11,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: "open-settings"): void;
   (e: "open-report"): void;
+  (e: "open-backup"): void;
   (e: "update:view", view: string): void;
   (e: "select-cat", catId: string | null): void;
   (e: "manage-categories"): void;
@@ -35,6 +36,10 @@ function handleOpenReport() {
 
 function handleOpenSettings() {
   emit("open-settings");
+}
+
+function handleOpenBackup() {
+  emit("open-backup");
 }
 
 function onViewChange(val: string) {
@@ -119,6 +124,15 @@ function handleManageCategories() {
         title="报告"
       >
         <FileTextOutlined />
+      </a-button>
+      <a-button
+        type="text"
+        size="small"
+        shape="circle"
+        @click="handleOpenBackup"
+        title="云备份"
+      >
+        <CloudUploadOutlined />
       </a-button>
       <a-button
         type="text"
