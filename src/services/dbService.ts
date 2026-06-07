@@ -1,4 +1,5 @@
 import { getDb, closeDb } from "./db"
+import { isTauri } from "./tauriEnv"
 import dayjs from "dayjs"
 
 interface BackupData {
@@ -9,25 +10,28 @@ interface BackupData {
 }
 
 export async function exportDatabase(): Promise<void> {
-  try {
-    const { appConfigDir } = await import("@tauri-apps/api/path")
-    const { save } = await import("@tauri-apps/plugin-dialog")
-    const { copyFile } = await import("@tauri-apps/plugin-fs")
+  if (isTauri) {
+    try {
+      const { appConfigDir } = await import("@tauri-apps/api/path")
+      const { save } = await import("@tauri-apps/plugin-dialog")
+      const { readFile, writeFile } = await import("@tauri-apps/plugin-fs")
 
-    const configDir = await appConfigDir()
-    const dbPath = `${configDir}doit.db`
+      const configDir = await appConfigDir()
+      const dbPath = `${configDir}doit.db`
 
-    const filePath = await save({
-      defaultPath: `doit-backup-${dayjs().format("YYYY-MM-DD")}.db`,
-      filters: [{ name: "SQLite Database", extensions: ["db"] }],
-    })
+      const filePath = await save({
+        defaultPath: `doit-backup-${dayjs().format("YYYY-MM-DD")}.db`,
+        filters: [{ name: "SQLite Database", extensions: ["db"] }],
+      })
 
-    if (!filePath) return
+      if (!filePath) return
 
-    await copyFile(dbPath, filePath)
-    return
-  } catch {
-    // 非 Tauri 环境，走浏览器 JSON 导出
+      const data = await readFile(dbPath)
+      await writeFile(filePath, data)
+      return
+    } catch {
+      // Tauri 导出失败，走浏览器 JSON 导出
+    }
   }
 
   const todosJson = localStorage.getItem("doit_todos")
@@ -42,25 +46,6 @@ export async function exportDatabase(): Promise<void> {
 
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" })
   const fileName = `doit-backup-${dayjs().format("YYYY-MM-DD")}.json`
-
-  // 尝试使用 File System Access API (现代浏览器支持)
-  try {
-    const handle = await (window as any).showSaveFilePicker({
-      suggestedName: fileName,
-      types: [
-        {
-          description: "JSON Backup",
-          accept: { "application/json": [".json"] },
-        },
-      ],
-    })
-    const writable = await handle.createWritable()
-    await writable.write(blob)
-    await writable.close()
-    return
-  } catch {
-    // 如果用户取消或浏览器不支持，fallback 到传统下载
-  }
 
   const url = URL.createObjectURL(blob)
   const a = document.createElement("a")
