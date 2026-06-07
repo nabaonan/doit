@@ -1,5 +1,26 @@
 # Changelog
 
+## v0.1.35 (2026-06-07)
+
+### Bug 修复
+
+- 修复Tauri环境下数据库导出逻辑 (`f8e038c` by @内小子)
+
+### 文档更新
+
+- 更新 Changelog for v0.1.34 (`0cfa065` by @github-actions[bot])
+
+### 构建/工具
+
+- release v0.1.35 (`81ab4ca` by @内小子)
+
+### 其他变更
+
+- Merge branch 'main' of github.com:nabaonan/doit (`ed125c7` by @内小子)
+
+---
+
+
 ## v0.1.34 (2026-06-07)
 
 ### Bug 修复
