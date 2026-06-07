@@ -29,8 +29,9 @@ export async function exportDatabase(): Promise<void> {
       const data = await readFile(dbPath)
       await writeFile(filePath, data)
       return
-    } catch {
-      // Tauri 导出失败，走浏览器 JSON 导出
+    } catch (e) {
+      console.error("Tauri 导出失败", e)
+      throw e
     }
   }
 
@@ -46,6 +47,27 @@ export async function exportDatabase(): Promise<void> {
 
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" })
   const fileName = `doit-backup-${dayjs().format("YYYY-MM-DD")}.json`
+
+  try {
+    const handle = await (window as any).showSaveFilePicker({
+      suggestedName: fileName,
+      types: [
+        {
+          description: "JSON Backup",
+          accept: { "application/json": [".json"] },
+        },
+      ],
+    })
+    const writable = await handle.createWritable()
+    await writable.write(blob)
+    await writable.close()
+    return
+  } catch (e) {
+    if ((e as DOMException).name === "AbortError") {
+      return
+    }
+    // 浏览器不支持 File System Access API，fallback 到传统下载
+  }
 
   const url = URL.createObjectURL(blob)
   const a = document.createElement("a")
