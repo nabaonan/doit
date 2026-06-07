@@ -1,5 +1,26 @@
 # Changelog
 
+## v0.1.36 (2026-06-07)
+
+### 新功能
+
+- 新增WebDAV云备份功能 (`40d8786` by @内小子)
+
+### 文档更新
+
+- 更新 Changelog for v0.1.35 (`120d90b` by @github-actions[bot])
+
+### 构建/工具
+
+- release v0.1.36 (`790237b` by @内小子)
+
+### 其他变更
+
+- Merge branch 'main' of github.com:nabaonan/doit (`da7174c` by @内小子)
+
+---
+
+
 ## v0.1.35 (2026-06-07)
 
 ### Bug 修复
