@@ -1,5 +1,26 @@
 # Changelog
 
+## v0.1.38 (2026-06-16)
+
+### Bug 修复
+
+- 修复快速点击checkbox无法勾选的问题 (`94bea8b` by @内小子)
+
+### 文档更新
+
+- 更新 Changelog for v0.1.37 (`ca7618b` by @github-actions[bot])
+
+### 构建/工具
+
+- release v0.1.38 (`1914f7f` by @内小子)
+
+### 其他变更
+
+- Merge branches 'main' and 'main' of github.com:nabaonan/doit (`276def4` by @内小子)
+
+---
+
+
 ## v0.1.37 (2026-06-16)
 
 ### Bug 修复
