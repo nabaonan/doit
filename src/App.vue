@@ -20,6 +20,7 @@ import { init as initSettings, getSettings, saveSettings } from "./services/sett
 import { exportDatabase, importDatabase } from "./services/dbService";
 
 const todos = ref<TodoItem[]>([]);
+const togglingIds = new Set<string>();
 const settings = ref<AppSettings>({
   completionMode: "longpress",
   longPressDuration: 3,
@@ -201,22 +202,28 @@ function getDescendantIds(parentId: string): string[] {
 }
 
 async function handleToggleComplete(id: string) {
+  if (togglingIds.has(id)) return;
   const todo = todos.value.find((t) => t.id === id);
   if (!todo) return;
   if (todo.parentId === null) {
     const hasChildren = todos.value.some((t) => t.parentId === id);
     if (hasChildren) return;
   }
+  togglingIds.add(id);
   const newCompleted = !todo.completed;
   todo.completed = newCompleted;
   todo.completedAt = newCompleted ? new Date().toISOString() : null;
   todos.value = sortTodos(todos.value);
-  await updateTodo(id, {
-    completed: newCompleted,
-    completedAt: todo.completedAt,
-  });
-  if (todo.parentId) {
-    await syncParentCompletion(todo.parentId);
+  try {
+    await updateTodo(id, {
+      completed: newCompleted,
+      completedAt: todo.completedAt,
+    });
+    if (todo.parentId) {
+      await syncParentCompletion(todo.parentId);
+    }
+  } finally {
+    togglingIds.delete(id);
   }
 }
 

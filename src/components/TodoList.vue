@@ -101,10 +101,10 @@ watch(
           el.style.transform = `translate(${dx}px, ${dy}px)`;
           el.style.transition = "none";
           requestAnimationFrame(() => {
-            el.style.transition = "transform 300ms ease";
+            el.style.transition = "transform 150ms ease";
             el.style.transform = "";
           });
-          flipCleanupTimers.set(id, setTimeout(() => cleanupFlipTransform(el, id), 350));
+          flipCleanupTimers.set(id, setTimeout(() => cleanupFlipTransform(el, id), 200));
         });
       });
     });

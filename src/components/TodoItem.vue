@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch, h, nextTick } from "vue";
-import { EditOutlined, DeleteOutlined, TagOutlined, PlusOutlined, FolderOutlined } from "@antdv-next/icons";
+import { EditOutlined, DeleteOutlined, TagOutlined, PlusOutlined, FolderOutlined, CheckCircleFilled } from "@antdv-next/icons";
 import type { MenuItemType } from "antdv-next";
 import dayjs from "dayjs";
 import type { TodoItem as TodoItemType, AppSettings } from "../types";
@@ -187,6 +187,7 @@ function onMenuClick({ key }: { key: string }) {
 }
 
 function onCheckboxClick() {
+  if (props.hasChildren) return;
   emit("toggle-complete");
 }
 
@@ -226,10 +227,12 @@ function onKeydown(e: KeyboardEvent) {
   }
 }
 
-function startLongPress() {
+function startLongPress(e: MouseEvent) {
   if (props.settings.completionMode !== "longpress") return;
   if (props.todo.completed) return;
   if (props.hasChildren) return;
+  const target = e.target as HTMLElement;
+  if (target.closest(".todo-checkbox")) return;
   isLongPressing.value = true;
   const durationMs = props.settings.longPressDuration * 1000;
 
@@ -267,7 +270,7 @@ function stopLongPress() {
       }"
       :style="(depth ?? 0) > 0 ? { paddingLeft: `${24 + (depth ?? 0) * 20}px` } : undefined"
       @dblclick="onDblClick"
-      @mousedown="startLongPress"
+      @mousedown="(e) => startLongPress(e)"
       @mouseup="stopLongPress"
       @mouseleave="stopLongPress"
     >
@@ -302,17 +305,31 @@ function stopLongPress() {
             v-if="settings.completionMode === 'checkbox'"
             :theme="{
               token: {
-                colorPrimary: '#22c55e',
+                colorPrimary: props.hasChildren
+                  ? 'var(--muted-foreground)'
+                  : props.todo.completed
+                    ? '#22c55e'
+                    : undefined,
               },
             }"
           >
-            <a-checkbox
-              :checked="todo.completed"
-              :disabled="hasChildren"
-              class="shrink-0 todo-checkbox"
-              @mousedown.stop
+            <a-tag
+              class="shrink-0 !inline-flex items-center justify-center !border-none !px-0 !py-0"
+              :class="{
+                'hover:!bg-transparent !bg-transparent cursor-pointer': !hasChildren,
+                '!bg-transparent opacity-40 cursor-not-allowed': hasChildren,
+              }"
               @click.prevent="onCheckboxClick"
-            />
+            >
+              <CheckCircleFilled
+                v-if="todo.completed"
+                style="font-size: 22px;"
+                :style="{ color: hasChildren ? 'var(--muted-foreground)' : '#22c55e' }"
+              />
+              <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-[22px] h-[22px]">
+                <circle cx="12" cy="12" r="10" />
+              </svg>
+            </a-tag>
           </a-config-provider>
 
           <div class="flex-1 min-w-0">
@@ -379,15 +396,3 @@ function stopLongPress() {
     </div>
   </div>
 </template>
-
-<style scoped>
-.todo-checkbox :deep(.ant-checkbox-inner) {
-  border-radius: 50%;
-  width: 22px;
-  height: 22px;
-}
-.todo-checkbox :deep(.ant-checkbox-inner::after) {
-  width: 8px;
-  height: 12px;
-}
-</style>
