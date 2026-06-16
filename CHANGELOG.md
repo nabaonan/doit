@@ -1,5 +1,26 @@
 # Changelog
 
+## v0.1.37 (2026-06-16)
+
+### Bug 修复
+
+- 修复待办事项无法选中的问题 (`96568e8` by @内小子)
+
+### 文档更新
+
+- 更新 Changelog for v0.1.36 (`cd71e12` by @github-actions[bot])
+
+### 构建/工具
+
+- release v0.1.37 (`2edac11` by @内小子)
+
+### 其他变更
+
+- Merge branch 'main' of github.com:nabaonan/doit (`b7de267` by @内小子)
+
+---
+
+
 ## v0.1.36 (2026-06-07)
 
 ### 新功能
