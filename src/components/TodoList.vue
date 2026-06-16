@@ -59,6 +59,14 @@ function mergeNested(existing: TodoItemNode[], incoming: TodoItemNode[]) {
   merge(existing, incoming);
 }
 
+let flipCleanupTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+function cleanupFlipTransform(el: HTMLElement, id: string) {
+  el.style.transform = "";
+  el.style.transition = "";
+  flipCleanupTimers.delete(id);
+}
+
 watch(
   () => props.todos,
   (todos) => {
@@ -78,6 +86,12 @@ watch(
         newItems.forEach((el) => {
           const id = el.getAttribute("data-todo-id");
           if (!id) return;
+
+          const existingTimer = flipCleanupTimers.get(id);
+          if (existingTimer) {
+            clearTimeout(existingTimer);
+          }
+
           const prev = prevRects.get(id);
           if (!prev) return;
           const curr = el.getBoundingClientRect();
@@ -90,6 +104,7 @@ watch(
             el.style.transition = "transform 300ms ease";
             el.style.transform = "";
           });
+          flipCleanupTimers.set(id, setTimeout(() => cleanupFlipTransform(el, id), 350));
         });
       });
     });

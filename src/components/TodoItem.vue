@@ -261,7 +261,7 @@ function stopLongPress() {
     :trigger="['contextmenu']"
   >
     <div
-      class="py-3 px-4 border-b border-[var(--border)] cursor-pointer relative overflow-hidden select-none"
+      class="py-3 px-4 border-b border-[var(--border)] cursor-pointer relative overflow-hidden select-none flex items-center gap-3"
       :class="{
         'cursor-default': isEditing,
       }"
@@ -284,7 +284,7 @@ function stopLongPress() {
         />
       </div>
 
-      <div v-if="isEditing" class="flex items-center gap-3 relative z-10">
+      <div v-if="isEditing" class="flex items-center gap-3 relative z-10 w-full flex-1">
         <a-input
           ref="editInput"
           v-model:value="localEditContent"
@@ -297,7 +297,7 @@ function stopLongPress() {
       </div>
 
       <template v-else>
-        <div class="flex items-center gap-3 relative z-10">
+        <div class="flex items-center gap-3 relative z-10 w-full">
           <a-config-provider
             v-if="settings.completionMode === 'checkbox'"
             :theme="{
@@ -311,7 +311,7 @@ function stopLongPress() {
               :disabled="hasChildren"
               class="shrink-0 todo-checkbox"
               @mousedown.stop
-              @click.stop="onCheckboxClick"
+              @click.prevent="onCheckboxClick"
             />
           </a-config-provider>
 
