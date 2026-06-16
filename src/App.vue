@@ -163,7 +163,7 @@ async function handleAddTodo(content: string) {
     completedAt: null,
     order: todos.value.length,
     tagId: null,
-    catId: null,
+    catId: selectedCatId.value === "__none__" ? null : selectedCatId.value,
     parentId: null,
   };
   await addTodo(newTodo);
