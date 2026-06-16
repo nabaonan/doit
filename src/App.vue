@@ -213,7 +213,6 @@ async function handleToggleComplete(id: string) {
   const newCompleted = !todo.completed;
   todo.completed = newCompleted;
   todo.completedAt = newCompleted ? new Date().toISOString() : null;
-  todos.value = sortTodos(todos.value);
   try {
     await updateTodo(id, {
       completed: newCompleted,
@@ -225,6 +224,7 @@ async function handleToggleComplete(id: string) {
   } finally {
     togglingIds.delete(id);
   }
+  todos.value = sortTodos(todos.value);
 }
 
 async function syncParentCompletion(parentId: string) {
@@ -235,7 +235,6 @@ async function syncParentCompletion(parentId: string) {
   if (parent && parent.completed !== allCompleted) {
     parent.completed = allCompleted;
     parent.completedAt = allCompleted ? new Date().toISOString() : null;
-    todos.value = sortTodos(todos.value);
     await updateTodo(parentId, {
       completed: allCompleted,
       completedAt: parent.completedAt,
@@ -274,6 +273,7 @@ async function handleReorder(ids: string[], parentIds?: Record<string, string | 
 
 async function handleAddSubTodo(parentId: string, content: string) {
   const siblings = todos.value.filter((t) => t.parentId === parentId);
+  const parent = todos.value.find((t) => t.id === parentId);
   const newTodo: TodoItem = {
     id: crypto.randomUUID(),
     content,
@@ -282,7 +282,7 @@ async function handleAddSubTodo(parentId: string, content: string) {
     completedAt: null,
     order: siblings.length,
     tagId: null,
-    catId: null,
+    catId: parent?.catId ?? null,
     parentId,
   };
   await addTodo(newTodo);
