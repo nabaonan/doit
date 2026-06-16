@@ -1,5 +1,27 @@
 # Changelog
 
+## v0.1.39 (2026-06-16)
+
+### Bug 修复
+
+- 修复子任务分类继承和列表排序问题 (`f13b2ef` by @内小子)
+- 修改在某个分类下添加待办则属于某个分类 (`b9177a1` by @内小子)
+
+### 文档更新
+
+- 更新 Changelog for v0.1.38 (`8542b9e` by @github-actions[bot])
+
+### 构建/工具
+
+- release v0.1.39 (`bf7aece` by @内小子)
+
+### 其他变更
+
+- Merge branch 'main' of github.com:nabaonan/doit (`9c1c93c` by @内小子)
+
+---
+
+
 ## v0.1.38 (2026-06-16)
 
 ### Bug 修复
