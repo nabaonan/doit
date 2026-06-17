@@ -1,8 +1,6 @@
 import type { AppSettings } from "../types"
 import { getDb } from "./db"
 
-const STORAGE_KEY = "doit_settings"
-
 const defaultSettings: AppSettings = {
   completionMode: "checkbox",
   longPressDuration: 3,
@@ -32,98 +30,79 @@ export async function init(): Promise<void> {
   await getDb()
 }
 
-function getLocalSettings(): AppSettings {
-  try {
-    const data = localStorage.getItem(STORAGE_KEY)
-    return data ? JSON.parse(data) : { ...defaultSettings }
-  } catch {
-    return { ...defaultSettings }
-  }
-}
-
-function saveLocalSettings(settings: AppSettings) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(settings))
-}
-
 export async function getSettings(): Promise<AppSettings> {
   const db = await getDb()
-  if (db) {
-    const rows = await (db as { select: <T>(sql: string) => Promise<T> }).select<Array<{ key: string; value: string }>>(
-      "SELECT key, value FROM settings"
-    )
+  if (!db) return { ...defaultSettings }
 
-    const kv: Record<string, string> = {}
-    for (const row of rows) {
-      kv[row.key] = row.value
-    }
+  const rows = await (db as { select: <T>(sql: string) => Promise<T> }).select<Array<{ key: string; value: string }>>(
+    "SELECT key, value FROM settings"
+  )
 
-    return {
-      completionMode: (kv["completionMode"] as "checkbox" | "longpress") || "checkbox",
-      longPressDuration: kv["longPressDuration"] ? Number(kv["longPressDuration"]) : 3,
-      theme: (kv["theme"] as "system" | "light" | "dark") || "system",
-      happyMode: kv["happyMode"] === "true",
-      fontFamily: (kv["fontFamily"] as "default" | "cartoon") || "default",
-      addTodoShortcut: kv["addTodoShortcut"]
-        ? JSON.parse(kv["addTodoShortcut"])
-        : { ...defaultSettings.addTodoShortcut },
-      tags: kv["tags"]
-        ? JSON.parse(kv["tags"])
-        : [...defaultSettings.tags],
-      categories: kv["categories"]
-        ? JSON.parse(kv["categories"])
-        : [...defaultSettings.categories],
-      cloudSync: kv["cloudSync"]
-        ? JSON.parse(kv["cloudSync"])
-        : { ...defaultSettings.cloudSync },
-    }
+  const kv: Record<string, string> = {}
+  for (const row of rows) {
+    kv[row.key] = row.value
   }
 
-  return getLocalSettings()
+  return {
+    completionMode: (kv["completionMode"] as "checkbox" | "longpress") || "checkbox",
+    longPressDuration: kv["longPressDuration"] ? Number(kv["longPressDuration"]) : 3,
+    theme: (kv["theme"] as "system" | "light" | "dark") || "system",
+    happyMode: kv["happyMode"] === "true",
+    fontFamily: (kv["fontFamily"] as "default" | "cartoon") || "default",
+    addTodoShortcut: kv["addTodoShortcut"]
+      ? JSON.parse(kv["addTodoShortcut"])
+      : { ...defaultSettings.addTodoShortcut },
+    tags: kv["tags"]
+      ? JSON.parse(kv["tags"])
+      : [...defaultSettings.tags],
+    categories: kv["categories"]
+      ? JSON.parse(kv["categories"])
+      : [...defaultSettings.categories],
+    cloudSync: kv["cloudSync"]
+      ? JSON.parse(kv["cloudSync"])
+      : { ...defaultSettings.cloudSync },
+  }
 }
 
 export async function saveSettings(settings: AppSettings): Promise<void> {
   const db = await getDb()
-  if (db) {
-    await (db as { execute: (sql: string) => Promise<void> }).execute("DELETE FROM settings")
+  if (!db) return
+  await (db as { execute: (sql: string) => Promise<void> }).execute("DELETE FROM settings")
 
-    await (db as { execute: (sql: string, params: unknown[]) => Promise<void> }).execute("INSERT INTO settings (key, value) VALUES ($1, $2)", [
-      "completionMode",
-      settings.completionMode,
-    ])
-    await (db as { execute: (sql: string, params: unknown[]) => Promise<void> }).execute("INSERT INTO settings (key, value) VALUES ($1, $2)", [
-      "longPressDuration",
-      String(settings.longPressDuration),
-    ])
-    await (db as { execute: (sql: string, params: unknown[]) => Promise<void> }).execute("INSERT INTO settings (key, value) VALUES ($1, $2)", [
-      "theme",
-      settings.theme,
-    ])
-    await (db as { execute: (sql: string, params: unknown[]) => Promise<void> }).execute("INSERT INTO settings (key, value) VALUES ($1, $2)", [
-      "happyMode",
-      String(settings.happyMode),
-    ])
-    await (db as { execute: (sql: string, params: unknown[]) => Promise<void> }).execute("INSERT INTO settings (key, value) VALUES ($1, $2)", [
-      "fontFamily",
-      settings.fontFamily,
-    ])
-    await (db as { execute: (sql: string, params: unknown[]) => Promise<void> }).execute("INSERT INTO settings (key, value) VALUES ($1, $2)", [
-      "addTodoShortcut",
-      JSON.stringify(settings.addTodoShortcut),
-    ])
-    await (db as { execute: (sql: string, params: unknown[]) => Promise<void> }).execute("INSERT INTO settings (key, value) VALUES ($1, $2)", [
-      "tags",
-      JSON.stringify(settings.tags),
-    ])
-    await (db as { execute: (sql: string, params: unknown[]) => Promise<void> }).execute("INSERT INTO settings (key, value) VALUES ($1, $2)", [
-      "categories",
-      JSON.stringify(settings.categories),
-    ])
-    await (db as { execute: (sql: string, params: unknown[]) => Promise<void> }).execute("INSERT INTO settings (key, value) VALUES ($1, $2)", [
-      "cloudSync",
-      JSON.stringify(settings.cloudSync),
-    ])
-    return
-  }
-
-  saveLocalSettings(settings)
+  await (db as { execute: (sql: string, params: unknown[]) => Promise<void> }).execute("INSERT INTO settings (key, value) VALUES ($1, $2)", [
+    "completionMode",
+    settings.completionMode,
+  ])
+  await (db as { execute: (sql: string, params: unknown[]) => Promise<void> }).execute("INSERT INTO settings (key, value) VALUES ($1, $2)", [
+    "longPressDuration",
+    String(settings.longPressDuration),
+  ])
+  await (db as { execute: (sql: string, params: unknown[]) => Promise<void> }).execute("INSERT INTO settings (key, value) VALUES ($1, $2)", [
+    "theme",
+    settings.theme,
+  ])
+  await (db as { execute: (sql: string, params: unknown[]) => Promise<void> }).execute("INSERT INTO settings (key, value) VALUES ($1, $2)", [
+    "happyMode",
+    String(settings.happyMode),
+  ])
+  await (db as { execute: (sql: string, params: unknown[]) => Promise<void> }).execute("INSERT INTO settings (key, value) VALUES ($1, $2)", [
+    "fontFamily",
+    settings.fontFamily,
+  ])
+  await (db as { execute: (sql: string, params: unknown[]) => Promise<void> }).execute("INSERT INTO settings (key, value) VALUES ($1, $2)", [
+    "addTodoShortcut",
+    JSON.stringify(settings.addTodoShortcut),
+  ])
+  await (db as { execute: (sql: string, params: unknown[]) => Promise<void> }).execute("INSERT INTO settings (key, value) VALUES ($1, $2)", [
+    "tags",
+    JSON.stringify(settings.tags),
+  ])
+  await (db as { execute: (sql: string, params: unknown[]) => Promise<void> }).execute("INSERT INTO settings (key, value) VALUES ($1, $2)", [
+    "categories",
+    JSON.stringify(settings.categories),
+  ])
+  await (db as { execute: (sql: string, params: unknown[]) => Promise<void> }).execute("INSERT INTO settings (key, value) VALUES ($1, $2)", [
+    "cloudSync",
+    JSON.stringify(settings.cloudSync),
+  ])
 }

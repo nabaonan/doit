@@ -114,10 +114,15 @@ function startSystemThemeTimer() {
 }
 
 onMounted(async () => {
-  await initTodos();
-  await initSettings();
-  todos.value = await getAllTodos();
-  settings.value = await getSettings();
+  try {
+    await initTodos();
+    await initSettings();
+    todos.value = await getAllTodos();
+    settings.value = await getSettings();
+    console.log("[doit] DB initialized, todos:", todos.value.length, "settings loaded");
+  } catch (e) {
+    console.warn("[doit] DB unavailable:", e);
+  }
   applyTheme(settings.value.theme);
   startSystemThemeTimer();
 });
@@ -142,7 +147,13 @@ async function handleSaveCategories(categories: Category[]) {
   const newIds = new Set(categories.map((c) => c.id));
   const removedIds = [...oldIds].filter((id) => !newIds.has(id));
   settings.value.categories = categories;
-  await saveSettings(settings.value);
+  try {
+    await saveSettings(settings.value);
+  } catch {
+    try {
+      settings.value = await getSettings();
+    } catch {}
+  }
   if (removedIds.length > 0) {
     for (const todo of todos.value) {
       if (todo.catId && removedIds.includes(todo.catId)) {
@@ -166,28 +177,52 @@ async function handleAddTodo(content: string) {
     catId: selectedCatId.value === "__none__" ? null : selectedCatId.value,
     parentId: null,
   };
-  await addTodo(newTodo);
-  todos.value = await getAllTodos();
+  const ok = await addTodo(newTodo);
+  if (ok) {
+    todos.value = await getAllTodos();
+  } else {
+    // DB unavailable (e.g. browser dev mode) — keep in memory
+    todos.value = sortTodos([...todos.value, newTodo]);
+  }
 }
 
 async function handleUpdateTodo(id: string, content: string) {
-  await updateTodo(id, { content });
-  todos.value = await getAllTodos();
+  const ok = await updateTodo(id, { content });
+  if (ok) {
+    todos.value = await getAllTodos();
+  } else {
+    const todo = todos.value.find((t) => t.id === id);
+    if (todo) todo.content = content;
+  }
 }
 
 async function handleSetTag(id: string, tagId: string | null) {
-  await updateTodo(id, { tagId });
-  todos.value = await getAllTodos();
+  const ok = await updateTodo(id, { tagId });
+  if (ok) {
+    todos.value = await getAllTodos();
+  } else {
+    const todo = todos.value.find((t) => t.id === id);
+    if (todo) todo.tagId = tagId;
+  }
 }
 
 async function handleSetCat(id: string, catId: string | null) {
   const idsToUpdate = [id];
   const childIds = getDescendantIds(id);
   idsToUpdate.push(...childIds);
+  let allOk = true;
   for (const todoId of idsToUpdate) {
-    await updateTodo(todoId, { catId });
+    const ok = await updateTodo(todoId, { catId });
+    if (!ok) allOk = false;
   }
-  todos.value = await getAllTodos();
+  if (allOk) {
+    todos.value = await getAllTodos();
+  } else {
+    for (const todoId of idsToUpdate) {
+      const todo = todos.value.find((t) => t.id === todoId);
+      if (todo) todo.catId = catId;
+    }
+  }
 }
 
 function getDescendantIds(parentId: string): string[] {
@@ -247,18 +282,26 @@ async function syncParentCompletion(parentId: string) {
 
 async function handleReorder(ids: string[], parentIds?: Record<string, string | null>) {
   const oldParentIds = new Map<string, string | null>();
+  let allOk = true;
 
   if (parentIds) {
     for (const [id, newParentId] of Object.entries(parentIds)) {
       const todo = todos.value.find((t) => t.id === id);
       oldParentIds.set(id, todo?.parentId ?? null);
-      await updateTodo(id, { parentId: newParentId });
+      const ok = await updateTodo(id, { parentId: newParentId });
+      if (!ok) allOk = false;
     }
   }
-  await reorderTodos(ids);
-  todos.value = await getAllTodos();
+  const reorderOk = await reorderTodos(ids);
+  if (!reorderOk) allOk = false;
 
-  if (parentIds) {
+  if (allOk) {
+    todos.value = await getAllTodos();
+  } else {
+    todos.value = sortTodos(todos.value);
+  }
+
+  if (parentIds && allOk) {
     const affectedParents = new Set<string>();
     for (const [id, newParentId] of Object.entries(parentIds)) {
       const oldParentId = oldParentIds.get(id);
@@ -285,13 +328,25 @@ async function handleAddSubTodo(parentId: string, content: string) {
     catId: parent?.catId ?? null,
     parentId,
   };
-  await addTodo(newTodo);
-  todos.value = await getAllTodos();
+  const ok = await addTodo(newTodo);
+  if (ok) {
+    todos.value = await getAllTodos();
+  } else {
+    todos.value = sortTodos([...todos.value, newTodo]);
+  }
 }
 
 async function handleDeleteTodo(id: string) {
-  await deleteTodo(id);
-  todos.value = await getAllTodos();
+  const ok = await deleteTodo(id);
+  if (ok) {
+    todos.value = await getAllTodos();
+  } else {
+    const idsToDelete = new Set([id]);
+    for (const t of todos.value) {
+      if (t.parentId === id) idsToDelete.add(t.id);
+    }
+    todos.value = sortTodos(todos.value.filter((t) => !idsToDelete.has(t.id)));
+  }
 }
 
 async function handleSaveSettings(newSettings: AppSettings) {
@@ -301,8 +356,12 @@ async function handleSaveSettings(newSettings: AppSettings) {
 }
 
 async function handleClearData() {
-  await clearAllTodos();
-  todos.value = await getAllTodos();
+  const ok = await clearAllTodos();
+  if (ok) {
+    todos.value = await getAllTodos();
+  } else {
+    todos.value = [];
+  }
 }
 
 async function handleExportDb() {

@@ -16,7 +16,9 @@ pub fn run() {
             created_at TEXT NOT NULL,
             completed_at TEXT,
             sort_order INTEGER NOT NULL DEFAULT 0,
-            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+            tag_id TEXT,
+            cat_id TEXT,
+            parent_id TEXT
         );
         CREATE TABLE IF NOT EXISTS settings (
             key TEXT PRIMARY KEY,

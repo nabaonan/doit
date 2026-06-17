@@ -1,5 +1,4 @@
 import { getDb, closeDb } from "./db"
-import { isTauri } from "./tauriEnv"
 import dayjs from "dayjs"
 
 interface BackupData {
@@ -10,6 +9,7 @@ interface BackupData {
 }
 
 export async function exportDatabase(): Promise<void> {
+const isTauri = !!(window as unknown as { __TAURI__?: unknown }).__TAURI__
   if (isTauri) {
     try {
       const { appConfigDir } = await import("@tauri-apps/api/path")

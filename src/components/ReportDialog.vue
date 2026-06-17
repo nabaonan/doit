@@ -6,7 +6,6 @@ import isoWeek from "dayjs/plugin/isoWeek";
 import { jsPDF } from "jspdf";
 import type { TodoItem, TodoItemNode } from "../types";
 import { flatToNested } from "../types";
-import { isTauri } from "../services/tauriEnv";
 
 dayjs.extend(isoWeek);
 
@@ -128,6 +127,7 @@ function uint8ArrayToBase64(bytes: Uint8Array): string {
 async function loadCJKFont(): Promise<string> {
   if (fontBase64) return fontBase64;
 
+  const isTauri = !!(window as unknown as { __TAURI__?: unknown }).__TAURI__;
   if (isTauri) {
     const { readFile } = await import("@tauri-apps/plugin-fs");
     const data = await readFile(FONT_PATH);
@@ -200,6 +200,8 @@ async function exportMarkdown() {
   const filename = `doit-${reportType.value === "daily" ? "日报" : "周报"}-${dayjs().format("YYYYMMDD")}.md`;
   const content = reportText.value;
 
+  const isTauri = !!(window as unknown as { __TAURI__?: unknown }).__TAURI__;
+
   if (isTauri) {
     try {
       const { save } = await import("@tauri-apps/plugin-dialog");
@@ -230,6 +232,7 @@ async function exportMarkdown() {
 async function exportPDF() {
   const filename = `doit-${reportType.value === "daily" ? "日报" : "周报"}-${dayjs().format("YYYYMMDD")}.pdf`;
 
+  const isTauri = !!(window as unknown as { __TAURI__?: unknown }).__TAURI__;
   if (isTauri) {
     try {
       const doc = await buildPDFDoc();

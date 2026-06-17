@@ -8,7 +8,7 @@ export default defineConfig({
   plugins: [vue(), tailwindcss()],
   clearScreen: false,
   server: {
-    port: 8443,
+    port: 1420,
     strictPort: true,
     host: "127.0.0.1",
     watch: {
