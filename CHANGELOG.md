@@ -1,5 +1,32 @@
 # Changelog
 
+## v0.1.40 (2026-06-17)
+
+### 新功能
+
+- 新增sql.js支持，实现浏览器端SQLite备份导入导出 (`c518609` by @内小子)
+
+### 重构
+
+- 合并重复的删除SQL语句 (`eb3bb34` by @内小子)
+- 调整DELETE语句处理逻辑顺序并提取重复代码 (`7c61ed0` by @内小子)
+- 移除tauriEnv.ts并重构数据存储逻辑 (`fcb4fca` by @内小子)
+
+### 文档更新
+
+- 更新 Changelog for v0.1.39 (`cec671f` by @github-actions[bot])
+
+### 构建/工具
+
+- release v0.1.40 (`01db94d` by @内小子)
+
+### 其他变更
+
+- Merge branch 'main' of github.com:nabaonan/doit (`52b3afc` by @内小子)
+
+---
+
+
 ## v0.1.39 (2026-06-16)
 
 ### Bug 修复
