@@ -130,8 +130,7 @@ export async function updateTodo(id: string, data: Partial<TodoItem>): Promise<b
 export async function deleteTodo(id: string): Promise<boolean> {
   const db = await getDb()
   if (!db) return false
-  await (db as { execute: (sql: string, params: unknown[]) => Promise<void> }).execute("DELETE FROM todos WHERE parent_id = $1", [id])
-  await (db as { execute: (sql: string, params: unknown[]) => Promise<void> }).execute("DELETE FROM todos WHERE id = $1", [id])
+  await (db as { execute: (sql: string, params: unknown[]) => Promise<void> }).execute("DELETE FROM todos WHERE id = $1 OR parent_id = $1", [id])
   return true
 }
 

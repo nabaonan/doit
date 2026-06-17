@@ -8,15 +8,7 @@ function createLocalDb() {
     async execute(sql: string, params?: unknown[]) {
       if (sql.startsWith("CREATE TABLE")) return
 
-      if (sql.startsWith("DELETE FROM todos WHERE parent_id")) {
-        const items = JSON.parse(localStorage.getItem(TODO_KEY) || "[]")
-        const parentId = params?.[0] as string
-        const filtered = items.filter((i: Record<string, unknown>) => i.parent_id !== parentId && i.id !== parentId)
-        localStorage.setItem(TODO_KEY, JSON.stringify(filtered))
-        return
-      }
-
-      if (sql.startsWith("DELETE FROM todos WHERE id")) {
+      if (sql.startsWith("DELETE FROM todos WHERE id") || sql.startsWith("DELETE FROM todos WHERE parent_id")) {
         const items = JSON.parse(localStorage.getItem(TODO_KEY) || "[]")
         const id = params?.[0] as string
         // Delete item and its children
