@@ -8,6 +8,34 @@ function createLocalDb() {
     async execute(sql: string, params?: unknown[]) {
       if (sql.startsWith("CREATE TABLE")) return
 
+      if (sql.startsWith("DELETE FROM todos WHERE parent_id")) {
+        const items = JSON.parse(localStorage.getItem(TODO_KEY) || "[]")
+        const parentId = params?.[0] as string
+        const filtered = items.filter((i: Record<string, unknown>) => i.parent_id !== parentId && i.id !== parentId)
+        localStorage.setItem(TODO_KEY, JSON.stringify(filtered))
+        return
+      }
+
+      if (sql.startsWith("DELETE FROM todos WHERE id")) {
+        const items = JSON.parse(localStorage.getItem(TODO_KEY) || "[]")
+        const id = params?.[0] as string
+        // Delete item and its children
+        const idsToDelete = new Set([id])
+        const findChildren = (parentId: string) => {
+          for (const item of items) {
+            if (item.parent_id === parentId && !idsToDelete.has(item.id as string)) {
+              idsToDelete.add(item.id as string)
+              findChildren(item.id as string)
+            }
+          }
+        }
+        findChildren(id)
+        const filtered = items.filter((i: Record<string, unknown>) => !idsToDelete.has(i.id as string))
+        localStorage.setItem(TODO_KEY, JSON.stringify(filtered))
+        return
+      }
+
+      // Generic DELETE (clear all)
       if (sql.startsWith("DELETE FROM")) {
         if (sql.includes("todos")) localStorage.removeItem(TODO_KEY)
         if (sql.includes("settings")) localStorage.removeItem(SETTINGS_KEY)
@@ -68,33 +96,6 @@ function createLocalDb() {
           }
         }
         localStorage.setItem(TODO_KEY, JSON.stringify(items))
-        return
-      }
-
-      if (sql.startsWith("DELETE FROM todos WHERE parent_id")) {
-        const items = JSON.parse(localStorage.getItem(TODO_KEY) || "[]")
-        const parentId = params?.[0] as string
-        const filtered = items.filter((i: Record<string, unknown>) => i.parent_id !== parentId && i.id !== parentId)
-        localStorage.setItem(TODO_KEY, JSON.stringify(filtered))
-        return
-      }
-
-      if (sql.startsWith("DELETE FROM todos WHERE id")) {
-        const items = JSON.parse(localStorage.getItem(TODO_KEY) || "[]")
-        const id = params?.[0] as string
-        // Delete item and its children
-        const idsToDelete = new Set([id])
-        const findChildren = (parentId: string) => {
-          for (const item of items) {
-            if (item.parent_id === parentId && !idsToDelete.has(item.id as string)) {
-              idsToDelete.add(item.id as string)
-              findChildren(item.id as string)
-            }
-          }
-        }
-        findChildren(id)
-        const filtered = items.filter((i: Record<string, unknown>) => !idsToDelete.has(i.id as string))
-        localStorage.setItem(TODO_KEY, JSON.stringify(filtered))
         return
       }
     },
