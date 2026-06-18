@@ -64,8 +64,8 @@ async function handleUpload() {
   }
   uploading.value = true;
   try {
-    await uploadDbBackup(webdavUrl, webdavUsername, webdavPassword);
-    message.success("数据库备份上传成功");
+    const result = await uploadDbBackup(webdavUrl, webdavUsername, webdavPassword);
+    message.success(result || "数据库备份上传成功");
   } catch (e: any) {
     message.error(e.message || "上传失败");
   } finally {

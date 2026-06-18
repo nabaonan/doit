@@ -106,38 +106,15 @@ export async function testConnection(
   return { ok: false, message: "连接失败：" + allErrors }
 }
 
-// ========== 同步 DB 文件 ==========
-
-const DB_BACKUP_PREFIX = "doit-db-backup"
-const DB_LATEST_FILENAME = "doit-db-latest.db"
+// ========== 同步 DB 文件（Rust 侧直接处理二进制） ==========
 
 export async function uploadDbBackup(
   url: string,
   username: string,
   password: string
-): Promise<void> {
+): Promise<string> {
   const { invoke } = await import("@tauri-apps/api/core")
-  const dataBase64 = await invoke<string>("read_db_base64")
-
-  const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19)
-  const timestampedFilename = `${DB_BACKUP_PREFIX}_${timestamp}.db`
-
-  const authHeader = getAuthHeader(username, password)
-  const headers = { Authorization: authHeader, "Content-Type": "application/octet-stream" }
-
-  const uploadFile = async (name: string) => {
-    const resp = await httpFetch(buildUrl(url, name), {
-      method: "PUT",
-      headers,
-      body: dataBase64,
-    })
-    if (!resp.ok) {
-      throw new Error(`上传失败: ${resp.status} ${resp.statusText}`)
-    }
-  }
-
-  await uploadFile(timestampedFilename)
-  await uploadFile(DB_LATEST_FILENAME)
+  return await invoke<string>("upload_db_to_webdav", { url, username, password })
 }
 
 export async function downloadDbBackup(
@@ -146,20 +123,7 @@ export async function downloadDbBackup(
   password: string
 ): Promise<void> {
   const { invoke } = await import("@tauri-apps/api/core")
-  const authHeader = getAuthHeader(username, password)
-
-  const latestUrl = buildUrl(url, DB_LATEST_FILENAME)
-  const resp = await httpFetch(latestUrl, {
-    method: "GET",
-    headers: { Authorization: authHeader },
-  })
-
-  if (!resp.ok) {
-    throw new Error(`下载失败: ${resp.status} ${resp.statusText}`)
-  }
-
-  const dataBase64 = await resp.text()
-  await invoke("write_db_base64", { dataBase64 })
+  await invoke("download_db_from_webdav", { url, username, password })
 }
 
 // ========== 旧 JSON 同步（保留兼容） ==========

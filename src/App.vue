@@ -18,6 +18,7 @@ import type { TodoItem, AppSettings, Category } from "./types";
 import { init as initTodos, getAllTodos, addTodo, updateTodo, deleteTodo, reorderTodos, sortTodos, clearAllTodos } from "./services/todoService";
 import { init as initSettings, getSettings, saveSettings } from "./services/settingsService";
 import { startAutoSync, stopAutoSync, setSyncCallback } from "./services/autoSyncService";
+import { exportDatabase, importDatabase } from "./services/dbService";
 
 const todos = ref<TodoItem[]>([]);
 const togglingIds = new Set<string>();
@@ -402,6 +403,24 @@ async function handleClearData() {
   }
 }
 
+async function handleExportDb() {
+  try {
+    await exportDatabase();
+  } catch (e) {
+    console.error("导出数据库失败", e);
+  }
+}
+
+async function handleImportDb() {
+  try {
+    await importDatabase();
+    todos.value = await getAllTodos();
+    settings.value = await getSettings();
+  } catch (e) {
+    console.error("导入数据库失败", e);
+  }
+}
+
 async function handleDataChanged() {
   todos.value = await getAllTodos();
   settings.value = await getSettings();
@@ -446,6 +465,8 @@ async function handleDataChanged() {
             :settings="settings"
             @save="handleSaveSettings"
             @clear-data="handleClearData"
+            @export-db="handleExportDb"
+            @import-db="handleImportDb"
           />
           <ReportDialog
             v-model:open="showReport"

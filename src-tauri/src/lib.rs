@@ -1,6 +1,8 @@
 use tauri_plugin_sql::{Migration, MigrationKind};
+use base64::Engine;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::path::PathBuf;
 use tauri::Manager;
 
 #[derive(Serialize, Deserialize)]
@@ -19,12 +21,28 @@ pub struct FetchResponse {
     pub body: String,
 }
 
-#[tauri::command]
-async fn tauri_fetch(req: FetchRequest) -> Result<FetchResponse, String> {
-    let client = reqwest::Client::builder()
+fn db_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    app.path()
+        .app_config_dir()
+        .map_err(|e| format!("获取配置目录失败: {}", e))
+        .map(|p| p.join("doit.db"))
+}
+
+fn make_client() -> Result<reqwest::Client, String> {
+    reqwest::Client::builder()
         .danger_accept_invalid_certs(true)
         .build()
-        .map_err(|e| format!("创建 HTTP 客户端失败: {}", e))?;
+        .map_err(|e| format!("创建 HTTP 客户端失败: {}", e))
+}
+
+fn build_auth_header(username: &str, password: &str) -> String {
+    let encoded = base64::engine::general_purpose::STANDARD.encode(format!("{}:{}", username, password));
+    format!("Basic {}", encoded)
+}
+
+#[tauri::command]
+async fn tauri_fetch(req: FetchRequest) -> Result<FetchResponse, String> {
+    let client = make_client()?;
 
     let method = req.method.to_uppercase();
     let req_builder = match method.as_str() {
@@ -75,48 +93,94 @@ async fn tauri_fetch(req: FetchRequest) -> Result<FetchResponse, String> {
 }
 
 #[tauri::command]
-async fn read_db_base64(app: tauri::AppHandle) -> Result<String, String> {
-    let db_path = app
-        .path()
-        .app_config_dir()
-        .map_err(|e| format!("获取配置目录失败: {}", e))?
-        .join("doit.db");
+async fn upload_db_to_webdav(
+    app: tauri::AppHandle,
+    url: String,
+    username: String,
+    password: String,
+) -> Result<String, String> {
+    let db = db_path(&app)?;
+    let data = std::fs::read(&db).map_err(|e| format!("读取数据库文件失败: {}", e))?;
 
-    let data = std::fs::read(&db_path)
-        .map_err(|e| format!("读取数据库文件失败: {}", e))?;
+    let client = make_client()?;
+    let auth_header = build_auth_header(&username, &password);
 
-    Ok(base64_encode(&data))
+    // 上传带时间戳的文件
+    let ts_name = {
+        use std::time::{SystemTime, UNIX_EPOCH};
+        let ts = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        format!("doit-db-backup_{}.db", ts)
+    };
+    let latest_name = "doit-db-latest.db".to_string();
+
+    let base = if url.ends_with('/') { url.clone() } else { format!("{}/", url) };
+
+    let mut uploaded = Vec::new();
+
+    for name in &[ts_name, latest_name] {
+        let full_url = format!("{}{}", base, name);
+        let resp = client
+            .put(&full_url)
+            .header("Authorization", &auth_header)
+            .header("Content-Type", "application/octet-stream")
+            .body(data.clone())
+            .send()
+            .await
+            .map_err(|e| format!("上传 {} 失败: {}", name, e))?;
+
+        let status = resp.status().as_u16();
+        if status < 200 || status >= 300 {
+            let text = resp.text().await.unwrap_or_default();
+            return Err(format!("上传 {} 失败: HTTP {} - {}", name, status, text));
+        }
+
+        uploaded.push(name.clone());
+    }
+
+    Ok(format!("上传成功: {}", uploaded.join(", ")))
 }
 
 #[tauri::command]
-async fn write_db_base64(app: tauri::AppHandle, data_base64: String) -> Result<(), String> {
-    let db_path = app
-        .path()
-        .app_config_dir()
-        .map_err(|e| format!("获取配置目录失败: {}", e))?
-        .join("doit.db");
+async fn download_db_from_webdav(
+    app: tauri::AppHandle,
+    url: String,
+    username: String,
+    password: String,
+) -> Result<String, String> {
+    let db = db_path(&app)?;
+    let client = make_client()?;
+    let auth_header = build_auth_header(&username, &password);
 
-    let data = base64_decode(&data_base64)?;
+    let base = if url.ends_with('/') { url.clone() } else { format!("{}/", url) };
+    let latest_url = format!("{}doit-db-latest.db", base);
 
-    // 直接覆盖写入数据库文件
-    // 注意：SQLite 连接在写入后可能缓存旧数据，
-    // 前端需要在 invoke 后重新初始化数据库（closeDb + getDb）
-    std::fs::write(&db_path, &data)
-        .map_err(|e| format!("写入数据库文件失败: {}", e))?;
+    let resp = client
+        .get(&latest_url)
+        .header("Authorization", &auth_header)
+        .send()
+        .await
+        .map_err(|e| format!("下载失败: {}", e))?;
 
-    Ok(())
-}
+    let status = resp.status().as_u16();
+    if status < 200 || status >= 300 {
+        let text = resp.text().await.unwrap_or_default();
+        return Err(format!("下载失败: HTTP {} - {}", status, text));
+    }
 
-fn base64_encode(data: &[u8]) -> String {
-    use base64::Engine;
-    base64::engine::general_purpose::STANDARD.encode(data)
-}
+    let bytes = resp.bytes().await.map_err(|e| format!("读取响应体失败: {}", e))?;
 
-fn base64_decode(data: &str) -> Result<Vec<u8>, String> {
-    use base64::Engine;
-    base64::engine::general_purpose::STANDARD
-        .decode(data)
-        .map_err(|e| format!("Base64 解码失败: {}", e))
+    // 备份当前数据库文件
+    if db.exists() {
+        let backup_name = format!("{}.bak", db.display());
+        let _ = std::fs::copy(&db, &backup_name);
+    }
+
+    std::fs::write(&db, &bytes).map_err(|e| format!("写入数据库文件失败: {}", e))?;
+
+    Ok("下载成功，数据库已恢复".to_string())
 }
 
 #[tauri::command]
@@ -154,7 +218,12 @@ pub fn run() {
                 .add_migrations("sqlite:doit.db", migrations)
                 .build(),
         )
-        .invoke_handler(tauri::generate_handler![greet, tauri_fetch, read_db_base64, write_db_base64])
+        .invoke_handler(tauri::generate_handler![
+            greet,
+            tauri_fetch,
+            upload_db_to_webdav,
+            download_db_from_webdav
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
