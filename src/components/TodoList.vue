@@ -186,6 +186,12 @@ function saveEdit(content: string) {
   const id = editingId.value;
   if (!id) return;
   if (content.trim() === "") {
+    const todo = props.todos.find((t) => t.id === id);
+    if (todo && todo.parentId) {
+      editingId.value = null;
+      editContent.value = "";
+      return;
+    }
     emit("delete-todo", id);
   } else {
     emit("update-todo", id, content);

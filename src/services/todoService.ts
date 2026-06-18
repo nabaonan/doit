@@ -51,7 +51,7 @@ export async function getAllTodos(): Promise<TodoItem[]> {
     cat_id: string | null
     parent_id: string | null
   }>>("SELECT * FROM todos ORDER BY completed ASC, sort_order ASC")
-  return rows.map((row) => ({
+  const items = rows.map((row) => ({
     id: row.id,
     content: row.content,
     completed: row.completed === 1,
@@ -62,6 +62,7 @@ export async function getAllTodos(): Promise<TodoItem[]> {
     catId: row.cat_id,
     parentId: row.parent_id,
   }))
+  return sortTodos(items)
 }
 
 export async function addTodo(item: TodoItem): Promise<boolean> {
