@@ -23,6 +23,7 @@ const emit = defineEmits<{
 
 const connecting = ref(false);
 const connected = ref<boolean | null>(null);
+const connectionMessage = ref("");
 const uploading = ref(false);
 const downloading = ref(false);
 const uploadSuccess = ref(false);
@@ -38,9 +39,11 @@ async function handleTestConnection() {
   }
   connecting.value = true;
   connected.value = null;
+  connectionMessage.value = "";
   try {
     const result = await testConnection(webdavUrl, webdavUsername, webdavPassword);
     connected.value = result.ok;
+    connectionMessage.value = result.message;
     if (result.ok) {
       message.success("连接成功");
     } else {
@@ -48,6 +51,7 @@ async function handleTestConnection() {
     }
   } catch {
     connected.value = false;
+    connectionMessage.value = "连接失败，请检查地址和网络";
     message.error("连接失败，请检查地址和网络");
   } finally {
     connecting.value = false;
@@ -126,22 +130,10 @@ function onCancel() {
     destroyOnHidden
   >
     <div class="flex flex-col gap-4">
-      <!-- 连接状态 -->
-      <div class="flex items-center justify-between p-3 rounded-lg border border-[var(--border)]">
-        <span class="text-sm text-[var(--foreground)]">WebDAV 连接</span>
-        <div class="flex items-center gap-2">
-          <span
-            v-if="connected === true"
-            class="text-xs text-green-600 flex items-center gap-1"
-          >
-            <CheckCircleOutlined /> 已连接
-          </span>
-          <span
-            v-else-if="connected === false"
-            class="text-xs text-red-500 flex items-center gap-1"
-          >
-            <CloseCircleOutlined /> 连接失败
-          </span>
+      <!-- 连接测试 -->
+      <div class="flex flex-col gap-2 p-3 rounded-lg border border-[var(--border)]">
+        <div class="flex items-center justify-between">
+          <span class="text-sm text-[var(--foreground)]">WebDAV 连接</span>
           <a-button
             size="small"
             :loading="connecting"
@@ -149,6 +141,19 @@ function onCancel() {
           >
             {{ connected === null ? "测试连接" : "重新测试" }}
           </a-button>
+        </div>
+        <div v-if="connected === true" class="flex items-center gap-1 text-xs text-green-600">
+          <CheckCircleOutlined /> 已连接
+        </div>
+        <div v-else-if="connected === false" class="flex items-center gap-1 text-xs text-red-500">
+          <CloseCircleOutlined /> 连接失败
+        </div>
+        <div
+          v-if="connectionMessage"
+          class="text-xs text-[var(--muted-foreground)] whitespace-pre-wrap break-all bg-[var(--muted)] p-2 rounded mt-1"
+          :class="connected ? 'text-green-700' : 'text-red-600'"
+        >
+          {{ connectionMessage }}
         </div>
       </div>
 

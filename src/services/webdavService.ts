@@ -1,4 +1,5 @@
 import type { TodoItem, AppSettings } from "../types"
+import { httpFetch, testWebdavConnection } from "./httpClient"
 
 export interface BackupData {
   version: number
@@ -19,62 +20,144 @@ function buildUrl(baseUrl: string, filename: string): string {
 }
 
 function tryUrls(base: string): string[] {
-  const urls: string[] = []
+  const candidates: string[] = []
+
+  // 用户输入的原样 + "/"
   const normalized = base.endsWith("/") ? base : base + "/"
-  urls.push(normalized)
-  // 一些 WebDAV 服务（如飞牛 NAS）的路径是 /webdav/ 而非根路径
-  if (!normalized.toLowerCase().includes("/webdav")) {
-    urls.push(normalized + "webdav/")
+  candidates.push(normalized)
+
+  // 尝试 /webdav/ 路径（飞牛 NAS 等）
+  const hasWebdav = normalized.toLowerCase().includes("/webdav")
+  if (!hasWebdav) {
+    candidates.push(normalized + "webdav/")
+    // 也尝试 webdav 不带 /
+    candidates.push(normalized + "webdav")
   }
-  return urls
+
+  // 去重
+  return [...new Set(candidates)]
 }
 
-async function tryFetch(url: string, method: string, headers: Record<string, string>, body?: BodyInit): Promise<Response> {
-  return fetch(url, { method, headers, body })
+export interface ConnectionResult {
+  ok: boolean
+  status?: number
+  message: string
 }
 
-export async function testConnection(url: string, username: string, password: string): Promise<{ ok: boolean; status?: number; message: string }> {
+export async function testConnection(
+  url: string,
+  username: string,
+  password: string
+): Promise<ConnectionResult> {
+  // 使用专门的 Tauri 直接连接测试（绕过 WebView fetch）
+  const directResult = await testWebdavConnection(url, username, password)
+  if (directResult.message.startsWith("连接成功")) {
+    return directResult
+  }
+
+  // 如果 Tauri 测试失败，再用 httpFetch 尝试一次（兼容浏览器模式）
   const authHeader = getAuthHeader(username, password)
   const candidates = tryUrls(url)
+  const errors: string[] = [directResult.message]
 
   for (const baseUrl of candidates) {
     try {
-      // 尝试 OPTIONS
-      let resp = await tryFetch(baseUrl, "OPTIONS", { Authorization: authHeader })
-      if (resp.ok) return { ok: true, status: resp.status, message: "连接成功" }
+      let resp = await httpFetch(baseUrl, {
+        method: "OPTIONS",
+        headers: { Authorization: authHeader },
+      })
+      if (resp.ok) {
+        return { ok: true, status: resp.status, message: `连接成功 (${baseUrl})` }
+      }
 
-      // 尝试 GET
-      resp = await tryFetch(baseUrl, "GET", { Authorization: authHeader })
-      if (resp.ok || resp.status === 404 || resp.status === 405) return { ok: true, status: resp.status, message: "连接成功" }
+      resp = await httpFetch(baseUrl, {
+        method: "PROPFIND",
+        headers: { Authorization: authHeader, Depth: "0" },
+      })
+      if (resp.ok || resp.status === 405) {
+        return { ok: true, status: resp.status, message: `连接成功 (${baseUrl})` }
+      }
 
-      // 尝试 PROPFIND
-      resp = await tryFetch(baseUrl, "PROPFIND", { Authorization: authHeader, Depth: "0" })
-      if (resp.ok) return { ok: true, status: resp.status, message: "连接成功" }
+      resp = await httpFetch(baseUrl, {
+        method: "GET",
+        headers: { Authorization: authHeader },
+      })
+      if (resp.ok || resp.status === 404 || resp.status === 405) {
+        return { ok: true, status: resp.status, message: `连接成功 (${baseUrl})` }
+      }
 
-      // 如果返回 405 Method Not Allowed，说明地址可达但方法不支持，也算连接成功
-      if (resp.status === 405) return { ok: true, status: resp.status, message: "连接成功" }
-    } catch {
-      // 当前 URL 失败，尝试下一个
-      continue
+      errors.push(`${baseUrl} -> HTTP ${resp.status} ${resp.statusText}`)
+    } catch (e: unknown) {
+      const err = e as Error
+      const msg = err.message || String(err)
+      errors.push(`${baseUrl} -> ${msg}`)
     }
   }
 
-  // 所有 URL 都失败，返回最后一个错误
-  try {
-    const lastUrl = candidates[candidates.length - 1]
-    const resp = await tryFetch(lastUrl, "OPTIONS", { Authorization: authHeader })
-    return { ok: false, status: resp.status, message: `服务器返回 ${resp.status} ${resp.statusText}` }
-  } catch (e: unknown) {
-    const err = e as Error
-    const msg = err.message || String(err)
-    if (msg.includes("Failed to fetch") || msg.includes("NetworkError")) {
-      return { ok: false, message: "网络错误：无法连接到服务器，请检查地址是否正确以及网络是否可达" }
+  const lastError = errors[errors.length - 1] || "未知错误"
+  const allErrors = errors.join("; ")
+
+  if (
+    lastError.includes("ERR_CERT") ||
+    lastError.includes("certificate") ||
+    lastError.includes("SSL") ||
+    lastError.includes("ssl")
+  ) {
+    return {
+      ok: false,
+      message:
+        "SSL 证书错误：NAS 使用了自签名证书。\n" +
+        "请尝试以下方法：\n" +
+        "1. 在浏览器中先打开 NAS 的 WebDAV 地址，信任证书后再试\n" +
+        "2. 如果使用 Tauri 桌面应用，确保以开发模式运行（自动忽略证书错误）\n" +
+        "详细错误：" +
+        allErrors,
     }
-    if (msg.includes("CORS") || msg.includes("cors")) {
-      return { ok: false, message: "CORS 错误：浏览器限制了跨域请求。请使用 Tauri 桌面模式运行，或在 NAS 上配置 CORS" }
-    }
-    return { ok: false, message: msg }
   }
+
+  if (lastError.includes("401")) {
+    return {
+      ok: false,
+      message: "认证失败（HTTP 401）：用户名或密码错误，请检查后重试",
+    }
+  }
+
+  if (lastError.includes("403")) {
+    return {
+      ok: false,
+      message: "权限不足（HTTP 403）：用户没有访问该路径的权限，请检查 WebDAV 用户权限设置",
+    }
+  }
+
+  if (lastError.includes("404")) {
+    return {
+      ok: false,
+      message:
+        "地址不存在（HTTP 404）：请检查 WebDAV URL 是否正确。\n" +
+        "常见 WebDAV 地址格式：\n" +
+        "- 群晖 NAS：http://<IP>:5005/webdav/ 或 https://<IP>:5006\n" +
+        "- 飞牛 NAS：http://<IP>/webdav/\n" +
+        "详细错误：" +
+        allErrors,
+    }
+  }
+
+  if (lastError.includes("Failed to fetch") || lastError.includes("NetworkError") || lastError.includes("network") || lastError.includes("拒绝连接") || lastError.includes("Connection refused")) {
+    return {
+      ok: false,
+      message:
+        "网络错误：无法连接到服务器。\n" +
+        "可能的原因：\n" +
+        "1. NAS 地址或端口不正确\n" +
+        "2. NAS 未开启 WebDAV 服务\n" +
+        "3. 网络不可达（是否在同一局域网？）\n" +
+        "4. NAS 自签名证书被 WebView 拒绝\n" +
+        "详细错误：" +
+        allErrors,
+    }
+  }
+
+  return { ok: false, message: "连接失败：" + allErrors }
 }
 
 export async function uploadBackup(
@@ -94,7 +177,7 @@ export async function uploadBackup(
   }
 
   const uploadFile = async (name: string) => {
-    const resp = await fetch(buildUrl(url, name), {
+    const resp = await httpFetch(buildUrl(url, name), {
       method: "PUT",
       headers,
       body,
@@ -114,7 +197,7 @@ export async function downloadBackup(
   password: string
 ): Promise<BackupData> {
   const latestUrl = buildUrl(url, "doit-backup_latest.json")
-  const resp = await fetch(latestUrl, {
+  const resp = await httpFetch(latestUrl, {
     method: "GET",
     headers: {
       Authorization: getAuthHeader(username, password),
@@ -123,7 +206,8 @@ export async function downloadBackup(
   if (!resp.ok) {
     throw new Error(`下载失败: ${resp.status} ${resp.statusText}`)
   }
-  const data: BackupData = await resp.json()
+  const bodyText = await resp.text()
+  const data: BackupData = JSON.parse(bodyText)
   if (!data.version || !data.data) {
     throw new Error("备份文件格式不兼容")
   }
@@ -136,7 +220,7 @@ export async function listBackups(
   password: string
 ): Promise<string[]> {
   const baseUrl = url.endsWith("/") ? url : url + "/"
-  const resp = await fetch(baseUrl, {
+  const resp = await httpFetch(baseUrl, {
     method: "PROPFIND",
     headers: {
       Authorization: getAuthHeader(username, password),
