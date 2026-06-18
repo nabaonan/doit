@@ -1,24 +1,24 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
-import { Modal, message } from "antdv-next";
+import { message } from "antdv-next";
 import {
   CloudUploadOutlined,
   CloudDownloadOutlined,
   CheckCircleOutlined,
   CloseCircleOutlined,
 } from "@antdv-next/icons";
-import { testConnection, uploadBackup, downloadBackup } from "../services/webdavService";
-import type { TodoItem, AppSettings } from "../types";
+import { testConnection, uploadDbBackup, downloadDbBackup } from "../services/webdavService";
+import { closeDb, getDb } from "../services/db";
+import type { AppSettings } from "../types";
 
 const props = defineProps<{
   open: boolean;
-  todos: TodoItem[];
   settings: AppSettings;
 }>();
 
 const emit = defineEmits<{
   (e: "update:open", open: boolean): void;
-  (e: "restore", data: { todos: TodoItem[]; settings: AppSettings }): void;
+  (e: "data-changed"): void;
 }>();
 
 const connecting = ref(false);
@@ -26,8 +26,6 @@ const connected = ref<boolean | null>(null);
 const connectionMessage = ref("");
 const uploading = ref(false);
 const downloading = ref(false);
-const uploadSuccess = ref(false);
-const downloadSuccess = ref(false);
 
 const webdavConfig = computed(() => props.settings.cloudSync);
 
@@ -65,18 +63,9 @@ async function handleUpload() {
     return;
   }
   uploading.value = true;
-  uploadSuccess.value = false;
   try {
-    await uploadBackup(webdavUrl, webdavUsername, webdavPassword, {
-      version: 1,
-      exportedAt: new Date().toISOString(),
-      data: {
-        todos: props.todos,
-        settings: props.settings,
-      },
-    });
-    uploadSuccess.value = true;
-    message.success("备份上传成功");
+    await uploadDbBackup(webdavUrl, webdavUsername, webdavPassword);
+    message.success("数据库备份上传成功");
   } catch (e: any) {
     message.error(e.message || "上传失败");
   } finally {
@@ -91,27 +80,20 @@ async function handleDownload() {
     return;
   }
 
-  Modal.confirm({
-    title: "确认恢复备份？",
-    content: "此操作将覆盖当前所有待办数据和设置，确认继续？",
-    okText: "确认恢复",
-    cancelText: "取消",
-    okButtonProps: { danger: true },
-    onOk: async () => {
-      downloading.value = true;
-      downloadSuccess.value = false;
-      try {
-        const data = await downloadBackup(webdavUrl, webdavUsername, webdavPassword);
-        downloadSuccess.value = true;
-        message.success("备份下载成功，正在恢复数据...");
-        emit("restore", data.data);
-      } catch (e: any) {
-        message.error(e.message || "下载失败");
-      } finally {
-        downloading.value = false;
-      }
-    },
-  });
+  uploading.value = true;
+  try {
+    await downloadDbBackup(webdavUrl, webdavUsername, webdavPassword);
+    // 下载完成后重新初始化数据库
+    await closeDb();
+    await getDb();
+    message.success("数据库恢复成功");
+    emit("data-changed");
+    emit("update:open", false);
+  } catch (e: any) {
+    message.error(e.message || "下载失败");
+  } finally {
+    uploading.value = false;
+  }
 }
 
 function onCancel() {
@@ -150,7 +132,7 @@ function onCancel() {
         </div>
         <div
           v-if="connectionMessage"
-          class="text-xs text-[var(--muted-foreground)] whitespace-pre-wrap break-all bg-[var(--muted)] p-2 rounded mt-1"
+          class="text-xs whitespace-pre-wrap break-all bg-[var(--muted)] p-2 rounded mt-1"
           :class="connected ? 'text-green-700' : 'text-red-600'"
         >
           {{ connectionMessage }}
@@ -160,8 +142,8 @@ function onCancel() {
       <!-- 上传 -->
       <div class="flex items-center justify-between p-3 rounded-lg border border-[var(--border)]">
         <div class="flex flex-col">
-          <span class="text-sm text-[var(--foreground)]">上传备份</span>
-          <span class="text-xs text-[var(--muted-foreground)]">将当前数据上传到 WebDAV</span>
+          <span class="text-sm text-[var(--foreground)]">上传数据库</span>
+          <span class="text-xs text-[var(--muted-foreground)]">将本地 SQLite 数据库同步到 WebDAV</span>
         </div>
         <a-button
           type="primary"
@@ -178,7 +160,7 @@ function onCancel() {
       <div class="flex items-center justify-between p-3 rounded-lg border border-[var(--border)]">
         <div class="flex flex-col">
           <span class="text-sm text-[var(--foreground)]">下载恢复</span>
-          <span class="text-xs text-[var(--muted-foreground)]">从 WebDAV 下载备份并覆盖本地数据</span>
+          <span class="text-xs text-[var(--muted-foreground)]">从 WebDAV 下载数据库并覆盖本地数据</span>
         </div>
         <a-button
           :loading="downloading"
@@ -193,7 +175,7 @@ function onCancel() {
       <!-- 提示 -->
       <div class="text-xs text-[var(--muted-foreground)] bg-[var(--muted)] p-2 rounded">
         <p>提示：WebDAV 地址和认证信息请在「设置」中配置。</p>
-        <p>上传会同时创建带时间戳的备份文件和 latest.json。</p>
+        <p>上传会同时创建带时间戳的备份文件 (.db) 和 doit-db-latest.db。</p>
       </div>
     </div>
   </a-modal>

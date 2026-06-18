@@ -1,6 +1,7 @@
 use tauri_plugin_sql::{Migration, MigrationKind};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use tauri::Manager;
 
 #[derive(Serialize, Deserialize)]
 pub struct FetchRequest {
@@ -74,6 +75,51 @@ async fn tauri_fetch(req: FetchRequest) -> Result<FetchResponse, String> {
 }
 
 #[tauri::command]
+async fn read_db_base64(app: tauri::AppHandle) -> Result<String, String> {
+    let db_path = app
+        .path()
+        .app_config_dir()
+        .map_err(|e| format!("获取配置目录失败: {}", e))?
+        .join("doit.db");
+
+    let data = std::fs::read(&db_path)
+        .map_err(|e| format!("读取数据库文件失败: {}", e))?;
+
+    Ok(base64_encode(&data))
+}
+
+#[tauri::command]
+async fn write_db_base64(app: tauri::AppHandle, data_base64: String) -> Result<(), String> {
+    let db_path = app
+        .path()
+        .app_config_dir()
+        .map_err(|e| format!("获取配置目录失败: {}", e))?
+        .join("doit.db");
+
+    let data = base64_decode(&data_base64)?;
+
+    // 直接覆盖写入数据库文件
+    // 注意：SQLite 连接在写入后可能缓存旧数据，
+    // 前端需要在 invoke 后重新初始化数据库（closeDb + getDb）
+    std::fs::write(&db_path, &data)
+        .map_err(|e| format!("写入数据库文件失败: {}", e))?;
+
+    Ok(())
+}
+
+fn base64_encode(data: &[u8]) -> String {
+    use base64::Engine;
+    base64::engine::general_purpose::STANDARD.encode(data)
+}
+
+fn base64_decode(data: &str) -> Result<Vec<u8>, String> {
+    use base64::Engine;
+    base64::engine::general_purpose::STANDARD
+        .decode(data)
+        .map_err(|e| format!("Base64 解码失败: {}", e))
+}
+
+#[tauri::command]
 fn greet(name: &str) -> String {
     format!("Hello, {}! You've been greeted from Rust!", name)
 }
@@ -108,7 +154,7 @@ pub fn run() {
                 .add_migrations("sqlite:doit.db", migrations)
                 .build(),
         )
-        .invoke_handler(tauri::generate_handler![greet, tauri_fetch])
+        .invoke_handler(tauri::generate_handler![greet, tauri_fetch, read_db_base64, write_db_base64])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

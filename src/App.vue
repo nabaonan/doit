@@ -17,7 +17,6 @@ import BackupDialog from "./components/BackupDialog.vue";
 import type { TodoItem, AppSettings, Category } from "./types";
 import { init as initTodos, getAllTodos, addTodo, updateTodo, deleteTodo, reorderTodos, sortTodos, clearAllTodos } from "./services/todoService";
 import { init as initSettings, getSettings, saveSettings } from "./services/settingsService";
-import { exportDatabase, importDatabase } from "./services/dbService";
 import { startAutoSync, stopAutoSync, setSyncCallback } from "./services/autoSyncService";
 
 const todos = ref<TodoItem[]>([]);
@@ -139,7 +138,7 @@ onMounted(async () => {
   });
 
   if (settings.value.cloudSync.enabled && settings.value.cloudSync.provider === "webdav" && settings.value.cloudSync.webdavUrl) {
-    startAutoSync(() => todos.value, () => settings.value);
+    startAutoSync(() => settings.value);
   }
 });
 
@@ -157,7 +156,7 @@ watch(() => settings.value.theme, (newTheme) => {
 
 watch(() => settings.value.cloudSync.enabled, (enabled) => {
   if (enabled && settings.value.cloudSync.provider === "webdav" && settings.value.cloudSync.webdavUrl) {
-    startAutoSync(() => todos.value, () => settings.value);
+    startAutoSync(() => settings.value);
   } else {
     stopAutoSync();
   }
@@ -165,7 +164,7 @@ watch(() => settings.value.cloudSync.enabled, (enabled) => {
 
 watch(() => settings.value.cloudSync.webdavUrl, () => {
   if (settings.value.cloudSync.enabled && settings.value.cloudSync.provider === "webdav" && settings.value.cloudSync.webdavUrl) {
-    startAutoSync(() => todos.value, () => settings.value);
+    startAutoSync(() => settings.value);
   } else {
     stopAutoSync();
   }
@@ -388,7 +387,7 @@ async function handleSaveSettings(newSettings: AppSettings) {
   showSettings.value = false;
 
   if (newSettings.cloudSync.enabled && newSettings.cloudSync.provider === "webdav" && newSettings.cloudSync.webdavUrl) {
-    startAutoSync(() => todos.value, () => settings.value);
+    startAutoSync(() => settings.value);
   } else {
     stopAutoSync();
   }
@@ -403,30 +402,7 @@ async function handleClearData() {
   }
 }
 
-async function handleExportDb() {
-  try {
-    await exportDatabase();
-  } catch (e) {
-    console.error("导出数据库失败", e);
-  }
-}
-
-async function handleImportDb() {
-  try {
-    await importDatabase();
-    todos.value = await getAllTodos();
-    settings.value = await getSettings();
-  } catch (e) {
-    console.error("导入数据库失败", e);
-  }
-}
-
-async function handleRestoreBackup(data: { todos: TodoItem[]; settings: AppSettings }) {
-  await clearAllTodos();
-  for (const todo of data.todos) {
-    await addTodo(todo);
-  }
-  await saveSettings(data.settings);
+async function handleDataChanged() {
   todos.value = await getAllTodos();
   settings.value = await getSettings();
   showBackup.value = false;
@@ -470,8 +446,6 @@ async function handleRestoreBackup(data: { todos: TodoItem[]; settings: AppSetti
             :settings="settings"
             @save="handleSaveSettings"
             @clear-data="handleClearData"
-            @export-db="handleExportDb"
-            @import-db="handleImportDb"
           />
           <ReportDialog
             v-model:open="showReport"
@@ -492,9 +466,8 @@ async function handleRestoreBackup(data: { todos: TodoItem[]; settings: AppSetti
           </div>
           <BackupDialog
             v-model:open="showBackup"
-            :todos="todos"
             :settings="settings"
-            @restore="handleRestoreBackup"
+            @data-changed="handleDataChanged"
           />
         </div>
       </a-app>
