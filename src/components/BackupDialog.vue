@@ -100,7 +100,7 @@ async function handleDownload() {
     return;
   }
 
-  uploading.value = true;
+  downloading.value = true;
   try {
     // 1. 先关闭 db 连接（让 tauri-plugin-sql 释放文件锁，Windows 必须）
     await closeDb();
@@ -120,7 +120,7 @@ async function handleDownload() {
   } catch (e: any) {
     message.error(e.message || "下载失败");
   } finally {
-    uploading.value = false;
+    downloading.value = false;
   }
 }
 

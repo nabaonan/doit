@@ -144,6 +144,8 @@ export async function clearAllTodos(): Promise<boolean> {
   const db = await getDb()
   if (!db) return false
   await (db as { execute: (sql: string) => Promise<void> }).execute("DELETE FROM todos")
+  // 同时清空分类和标签（它们存在 settings 表中）
+  await (db as { execute: (sql: string) => Promise<void> }).execute("DELETE FROM settings WHERE key IN ('categories', 'tags')")
   return true
 }
 

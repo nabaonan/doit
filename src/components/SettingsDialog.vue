@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch, h } from "vue";
+import { ref, computed, onMounted, onUnmounted, watch, h, nextTick } from "vue";
 import { Modal } from "antdv-next";
-import { KeyOutlined, SunOutlined, MoonOutlined, MonitorOutlined } from "@antdv-next/icons";
+import { KeyOutlined, SunOutlined, MoonOutlined, MonitorOutlined, DownloadOutlined, UploadOutlined, DeleteOutlined } from "@antdv-next/icons";
 import type { AppSettings, Tag } from "../types";
 
 const props = defineProps<{
@@ -48,9 +48,39 @@ function renderPresetsOnly({ extra }: { extra: { components: { Presets: any } } 
 
 watch(() => props.open, (val) => {
   if (val) {
+    // 打开时同步 props.settings 到 localSettings，期间抑制 deep watch 触发的保存
+    suppressSave = true;
     localSettings.value = JSON.parse(JSON.stringify(props.settings));
     newTagName.value = "";
     newTagColor.value = "#3B82F6";
+    // 在 nextTick 后解除抑制，确保初次同步完成
+    nextTick(() => {
+      suppressSave = false;
+    });
+  }
+});
+
+// 实时保存：设置项改变后 250ms 自动写入数据库（debounce 避免频繁写入）
+let saveTimer: number | null = null;
+let suppressSave = false; // 抑制初始同步期间的保存
+watch(
+  localSettings,
+  (val) => {
+    if (suppressSave) return;
+    if (saveTimer !== null) {
+      clearTimeout(saveTimer);
+    }
+    saveTimer = window.setTimeout(() => {
+      emit("save", JSON.parse(JSON.stringify(val)));
+    }, 250);
+  },
+  { deep: true }
+);
+
+onUnmounted(() => {
+  if (saveTimer !== null) {
+    clearTimeout(saveTimer);
+    saveTimer = null;
   }
 });
 
@@ -119,19 +149,20 @@ onUnmounted(() => {
   document.removeEventListener("keydown", handleRecordKeydown);
 });
 
-function onSave() {
+function onClose() {
+  // 立即 flush 未保存的修改
+  if (saveTimer !== null) {
+    clearTimeout(saveTimer);
+    saveTimer = null;
+  }
   emit("save", JSON.parse(JSON.stringify(localSettings.value)));
-  emit("update:open", false);
-}
-
-function onCancel() {
   emit("update:open", false);
 }
 
 function confirmClearData() {
   Modal.confirm({
-    title: "确定要清空所有待办数据吗？",
-    content: "此操作不可恢复，设置不会被清除。",
+    title: "确定要清空所有数据吗？",
+    content: "此操作不可恢复，待办、分类和标签都会被清除（主题、快捷键等设置保留）。",
     okText: "确认清空",
     cancelText: "取消",
     okButtonProps: { danger: true },
@@ -147,204 +178,198 @@ function confirmClearData() {
     :open="props.open"
     title="设置"
     :footer="null"
-    :width="420"
-    @cancel="onCancel"
+    :width="460"
+    @cancel="onClose"
     centered
     destroyOnHidden
   >
-    <div class="mb-6">
-      <h3 class="text-sm font-medium text-[var(--muted-foreground)] mb-3">主题模式</h3>
-      <a-radio-group v-model:value="localSettings.theme" class="flex flex-col gap-2">
-        <a-radio value="system">
-          <MonitorOutlined class="mr-1" :style="{ fontSize: '14px' }" />
-          跟随系统
-        </a-radio>
-        <a-radio value="light">
-          <SunOutlined class="mr-1" :style="{ fontSize: '14px' }" />
-          浅色模式
-        </a-radio>
-        <a-radio value="dark">
-          <MoonOutlined class="mr-1" :style="{ fontSize: '14px' }" />
-          深色模式
-        </a-radio>
-      </a-radio-group>
-    </div>
+    <div class="space-y-5">
+      <!-- 主题 -->
+      <div>
+        <h3 class="text-xs font-medium text-[var(--muted-foreground)] mb-2">主题</h3>
+        <a-radio-group v-model:value="localSettings.theme" class="flex gap-x-4">
+          <a-radio value="system">
+            <MonitorOutlined class="mr-0.5" :style="{ fontSize: '13px' }" />
+            系统
+          </a-radio>
+          <a-radio value="light">
+            <SunOutlined class="mr-0.5" :style="{ fontSize: '13px' }" />
+            浅色
+          </a-radio>
+          <a-radio value="dark">
+            <MoonOutlined class="mr-0.5" :style="{ fontSize: '13px' }" />
+            深色
+          </a-radio>
+        </a-radio-group>
+      </div>
 
-    <div class="mb-6">
-      <h3 class="text-sm font-medium text-[var(--muted-foreground)] mb-3">字体</h3>
-      <a-radio-group v-model:value="localSettings.fontFamily" class="flex flex-col gap-2">
-        <a-radio value="default">
-          <span class="font-sans">系统默认</span>
-        </a-radio>
-        <a-radio value="cartoon">
-          <span style="font-family: 'ZCOOL XiaoWei', sans-serif;">卡通字体 (小薇体)</span>
-        </a-radio>
-      </a-radio-group>
-    </div>
+      <!-- 字体 -->
+      <div>
+        <h3 class="text-xs font-medium text-[var(--muted-foreground)] mb-2">字体</h3>
+        <a-radio-group v-model:value="localSettings.fontFamily" class="flex gap-x-4">
+          <a-radio value="default">系统默认</a-radio>
+          <a-radio value="cartoon">
+            <span style="font-family: 'ZCOOL XiaoWei', sans-serif;">卡通</span>
+          </a-radio>
+        </a-radio-group>
+      </div>
 
-    <div class="mb-6">
+      <!-- 快乐工作 -->
       <div class="flex items-center justify-between">
-        <h3 class="text-sm font-medium text-[var(--muted-foreground)]">快乐工作</h3>
-        <a-switch v-model:checked="localSettings.happyMode" />
-      </div>
-      <p class="text-xs text-[var(--muted-foreground)] mt-1">
-        开启后点击按钮、复选框等组件会有彩色圆点动画效果
-      </p>
-    </div>
-
-    <div class="mb-6">
-      <h3 class="text-sm font-medium text-[var(--muted-foreground)] mb-3">添加快捷键</h3>
-      <a-button
-        block
-        class="flex items-center justify-between"
-        :class="recordingShortcut ? 'border-[var(--primary)]' : ''"
-        @click="startRecording"
-      >
-        <span class="flex items-center gap-2">
-          <KeyOutlined :style="{ fontSize: '14px', color: 'var(--muted-foreground)' }" />
-          <span v-if="recordingShortcut" class="text-[var(--primary)]">请按下组合键...</span>
-          <span v-else class="text-[var(--muted-foreground)]">新增待办快捷键</span>
-        </span>
-        <a-tag>{{ shortcutDisplay }}</a-tag>
-      </a-button>
-    </div>
-
-    <div class="mb-6">
-      <h3 class="text-sm font-medium text-[var(--muted-foreground)] mb-3">自定义标签</h3>
-      <div class="flex gap-2 mb-3">
-        <a-color-picker
-          v-model:value="newTagColor"
-          :presets="colorPickerPresets"
-          value-format="hex"
-          size="small"
-          :panelRender="renderPresetsOnly"
-        >
-          <div
-            class="w-8 h-8 rounded-md border border-[var(--border)] cursor-pointer shrink-0 transition-shadow hover:shadow-md"
-            :style="{ backgroundColor: newTagColor }"
-          />
-        </a-color-picker>
-        <a-input
-          v-model:value="newTagName"
-          placeholder="输入标签名称，回车添加"
-          size="middle"
-          @pressEnter="addTag"
-          class="flex-1"
-        />
-      </div>
-      <div v-if="localSettings.tags && localSettings.tags.length > 0" class="flex flex-wrap gap-2">
-        <a-tag
-          v-for="tag in localSettings.tags"
-          :key="tag.id"
-          :color="tag.color"
-          variant="solid"
-          closable
-          @close="removeTag(tag.id)"
-        >
-          {{ tag.name }}
-        </a-tag>
-      </div>
-      <div
-        v-if="!localSettings.tags || localSettings.tags.length === 0"
-        class="text-xs text-[var(--muted-foreground)] py-2"
-      >
-        暂无标签，请输入名称并回车添加
-      </div>
-    </div>
-
-    <div class="mb-6">
-      <h3 class="text-sm font-medium text-[var(--muted-foreground)] mb-3">完成方式</h3>
-      <a-radio-group v-model:value="localSettings.completionMode" class="flex flex-col gap-2">
-        <a-radio value="checkbox">勾选完成</a-radio>
-        <a-radio value="longpress">长按完成</a-radio>
-      </a-radio-group>
-
-      <div v-if="localSettings.completionMode === 'longpress'" class="mt-4">
-        <div class="flex items-center justify-between mb-2">
-          <span class="text-xs text-[var(--muted-foreground)]">长按时长</span>
-          <span class="text-xs font-medium">{{ localSettings.longPressDuration }} 秒</span>
-        </div>
-        <a-slider
-          v-model:value="localSettings.longPressDuration"
-          :min="1"
-          :max="10"
-          :step="1"
-        />
-      </div>
-    </div>
-
-    <div class="mb-6">
-      <h3 class="text-sm font-medium text-[var(--muted-foreground)] mb-3">云同步</h3>
-      <div class="flex items-center justify-between mb-3">
-        <span class="text-sm">启用云同步</span>
-        <a-switch v-model:checked="localSettings.cloudSync.enabled" />
-      </div>
-
-      <div v-if="localSettings.cloudSync.enabled" class="flex flex-col gap-3">
         <div>
-          <label class="text-xs text-[var(--muted-foreground)] block mb-1.5">同步方式</label>
+          <span class="text-sm">快乐工作</span>
+          <p class="text-xs text-[var(--muted-foreground)] mt-0.5">点击组件时有彩色圆点动画</p>
+        </div>
+        <a-switch v-model:checked="localSettings.happyMode" size="small" />
+      </div>
+
+      <!-- 完成方式 -->
+      <div>
+        <h3 class="text-xs font-medium text-[var(--muted-foreground)] mb-2">完成方式</h3>
+        <a-radio-group v-model:value="localSettings.completionMode" class="flex gap-x-4">
+          <a-radio value="checkbox">勾选</a-radio>
+          <a-radio value="longpress">长按</a-radio>
+        </a-radio-group>
+        <div v-if="localSettings.completionMode === 'longpress'" class="mt-3 flex items-center gap-2">
+          <span class="text-xs text-[var(--muted-foreground)] shrink-0">长按时长</span>
+          <a-slider
+            v-model:value="localSettings.longPressDuration"
+            :min="1"
+            :max="10"
+            :step="1"
+            class="flex-1"
+          />
+          <span class="text-xs font-medium w-8 text-right tabular-nums">{{ localSettings.longPressDuration }}秒</span>
+        </div>
+      </div>
+
+      <!-- 快捷键 -->
+      <div>
+        <h3 class="text-xs font-medium text-[var(--muted-foreground)] mb-2">添加快捷键</h3>
+        <a-button
+          block
+          size="small"
+          class="flex items-center justify-between"
+          :class="recordingShortcut ? 'border-[var(--primary)]' : ''"
+          @click="startRecording"
+        >
+          <span class="flex items-center gap-2">
+            <KeyOutlined :style="{ fontSize: '13px', color: 'var(--muted-foreground)' }" />
+            <span v-if="recordingShortcut" class="text-[var(--primary)]">请按下组合键...</span>
+            <span v-else class="text-[var(--muted-foreground)]">新增待办快捷键</span>
+          </span>
+          <a-tag>{{ shortcutDisplay }}</a-tag>
+        </a-button>
+      </div>
+
+      <!-- 标签管理 -->
+      <div>
+        <h3 class="text-xs font-medium text-[var(--muted-foreground)] mb-2">自定义标签</h3>
+        <div class="flex gap-2 mb-2">
+          <a-color-picker
+            v-model:value="newTagColor"
+            :presets="colorPickerPresets"
+            value-format="hex"
+            size="small"
+            :panelRender="renderPresetsOnly"
+          >
+            <div
+              class="w-7 h-7 rounded-md border border-[var(--border)] cursor-pointer shrink-0 transition-shadow hover:shadow-md"
+              :style="{ backgroundColor: newTagColor }"
+            />
+          </a-color-picker>
+          <a-input
+            v-model:value="newTagName"
+            placeholder="输入标签名称，回车添加"
+            size="small"
+            @pressEnter="addTag"
+            class="flex-1"
+          />
+        </div>
+        <div v-if="localSettings.tags && localSettings.tags.length > 0" class="flex flex-wrap gap-1.5">
+          <a-tag
+            v-for="tag in localSettings.tags"
+            :key="tag.id"
+            :color="tag.color"
+            variant="solid"
+            closable
+            @close="removeTag(tag.id)"
+          >
+            {{ tag.name }}
+          </a-tag>
+        </div>
+        <div
+          v-else
+          class="text-xs text-[var(--muted-foreground)] py-1"
+        >
+          暂无标签
+        </div>
+      </div>
+
+      <!-- 云同步 -->
+      <div>
+        <h3 class="text-xs font-medium text-[var(--muted-foreground)] mb-2">云同步</h3>
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-sm">启用云同步</span>
+          <a-switch v-model:checked="localSettings.cloudSync.enabled" size="small" />
+        </div>
+
+        <div v-if="localSettings.cloudSync.enabled" class="flex flex-col gap-2">
           <a-select
             v-model:value="localSettings.cloudSync.provider"
             :options="providerOptions"
+            size="small"
             class="w-full"
           />
-        </div>
 
-        <template v-if="localSettings.cloudSync.provider === 'local_folder'">
-          <div>
-            <label class="text-xs text-[var(--muted-foreground)] block mb-1.5">同步路径</label>
+          <template v-if="localSettings.cloudSync.provider === 'local_folder'">
             <div class="flex gap-2">
               <a-input
                 v-model:value="localSettings.cloudSync.localSyncPath"
                 placeholder="选择本地文件夹路径..."
+                size="small"
               />
-              <a-button>浏览</a-button>
+              <a-button size="small">浏览</a-button>
             </div>
-          </div>
-        </template>
+          </template>
 
-        <template v-else>
-          <div>
-            <label class="text-xs text-[var(--muted-foreground)] block mb-1.5">WebDAV URL</label>
+          <template v-else>
             <a-input
               v-model:value="localSettings.cloudSync.webdavUrl"
-              placeholder="https://example.com/webdav/"
+              placeholder="WebDAV URL，例如 https://example.com/webdav/"
+              size="small"
             />
-          </div>
-          <div>
-            <label class="text-xs text-[var(--muted-foreground)] block mb-1.5">用户名</label>
             <a-input
               v-model:value="localSettings.cloudSync.webdavUsername"
               placeholder="用户名"
+              size="small"
             />
-          </div>
-          <div>
-            <label class="text-xs text-[var(--muted-foreground)] block mb-1.5">密码</label>
             <a-input-password
               v-model:value="localSettings.cloudSync.webdavPassword"
               placeholder="密码"
+              size="small"
             />
-          </div>
-        </template>
+          </template>
+        </div>
       </div>
-    </div>
 
-    <div class="mb-6 pt-4 border-t border-[var(--border)]">
-      <h3 class="text-sm font-medium text-[var(--foreground)] mb-3">数据管理</h3>
-      <div class="flex flex-col gap-2">
-        <a-button @click="emit('export-db')">导出数据库</a-button>
-        <a-button @click="emit('import-db')">导入数据库</a-button>
+      <!-- 数据管理 + 危险操作 同一行 -->
+      <div class="pt-3 border-t border-[var(--border)]">
+        <div class="grid grid-cols-3 gap-2">
+          <a-button size="small" @click="emit('export-db')">
+            <DownloadOutlined />
+            导出
+          </a-button>
+          <a-button size="small" @click="emit('import-db')">
+            <UploadOutlined />
+            导入
+          </a-button>
+          <a-button size="small" danger @click="confirmClearData">
+            <DeleteOutlined />
+            清空
+          </a-button>
+        </div>
       </div>
-    </div>
-
-    <div class="mb-6 pt-4 border-t border-[var(--border)]">
-      <h3 class="text-sm font-medium text-[var(--destructive)] mb-3">危险操作</h3>
-      <a-button danger block @click="confirmClearData">清空本地数据</a-button>
-    </div>
-
-    <div class="flex justify-end gap-2 pt-2">
-      <a-button @click="onCancel">取消</a-button>
-      <a-button type="primary" @click="onSave">保存</a-button>
     </div>
   </a-modal>
 </template>

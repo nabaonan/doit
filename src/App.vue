@@ -352,13 +352,20 @@ async function handleDeleteTodo(id: string) {
 async function handleSaveSettings(newSettings: AppSettings) {
   await saveSettings(newSettings);
   settings.value = newSettings;
-  showSettings.value = false;
+  // 不在此处关闭弹框，由 SettingsDialog 自身的 onClose 控制
+  // 否则实时保存会立即关闭弹框
 }
 
 async function handleClearData() {
   const ok = await clearAllTodos();
   if (ok) {
     todos.value = await getAllTodos();
+    // 同步清空 settings 状态中的 categories 和 tags
+    settings.value = {
+      ...settings.value,
+      categories: [],
+      tags: [],
+    };
   } else {
     todos.value = [];
   }
