@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from "vue";
+import { ref, computed, watch, onMounted } from "vue";
 import { message } from "antdv-next";
 import {
   CloudUploadOutlined,
@@ -9,7 +9,16 @@ import {
 } from "@antdv-next/icons";
 import { testConnection, uploadDbBackup, downloadDbBackup } from "../services/webdavService";
 import { closeDb, getDb } from "../services/db";
+import { invoke } from "@tauri-apps/api/core";
 import type { AppSettings } from "../types";
+
+async function diagnoseDbPaths() {
+  try {
+    await invoke("diagnose_db_paths");
+  } catch (e) {
+    console.error("diagnose_db_paths failed", e);
+  }
+}
 
 const props = defineProps<{
   open: boolean;
@@ -20,6 +29,17 @@ const emit = defineEmits<{
   (e: "update:open", open: boolean): void;
   (e: "data-changed"): void;
 }>();
+
+// 弹窗打开时立即诊断 db 路径
+onMounted(() => {
+  diagnoseDbPaths();
+});
+watch(
+  () => props.open,
+  (open) => {
+    if (open) diagnoseDbPaths();
+  }
+);
 
 const connecting = ref(false);
 const connected = ref<boolean | null>(null);
@@ -64,15 +84,11 @@ async function handleUpload() {
   }
   uploading.value = true;
   try {
-    // 关闭 db 连接，确保数据被 flush 到磁盘（WAL checkpoint）
-    await closeDb();
     const result = await uploadDbBackup(webdavUrl, webdavUsername, webdavPassword);
     message.success(result || "数据库备份上传成功");
   } catch (e: any) {
     message.error(e.message || "上传失败");
   } finally {
-    // 重新打开 db 连接
-    await getDb();
     uploading.value = false;
   }
 }

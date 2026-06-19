@@ -6,6 +6,11 @@
   "permissions": [
     "core:default",
     "sql:default",
+    "sql:allow-execute",
+    {
+      "identifier": "sql:allow-load",
+      "allow": [{ "name": "sqlite:doit.db" }]
+    },
     "dialog:default",
     "fs:default",
     {

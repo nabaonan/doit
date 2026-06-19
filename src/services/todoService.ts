@@ -71,12 +71,17 @@ export async function addTodo(item: TodoItem): Promise<boolean> {
     console.warn("[doit] addTodo: db unavailable")
     return false
   }
-  await (db as { execute: (sql: string, params: unknown[]) => Promise<void> }).execute(
-    "INSERT INTO todos (id, content, completed, created_at, completed_at, sort_order, tag_id, cat_id, parent_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
-    [item.id, item.content, item.completed ? 1 : 0, item.createdAt, item.completedAt, item.order, item.tagId, item.catId, item.parentId]
-  )
-  console.log("[doit] addTodo success:", item.id)
-  return true
+  try {
+    await (db as { execute: (sql: string, params: unknown[]) => Promise<void> }).execute(
+      "INSERT INTO todos (id, content, completed, created_at, completed_at, sort_order, tag_id, cat_id, parent_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
+      [item.id, item.content, item.completed ? 1 : 0, item.createdAt, item.completedAt, item.order, item.tagId, item.catId, item.parentId]
+    )
+    console.log("[doit] addTodo success:", item.id)
+    return true
+  } catch (e) {
+    console.error("[doit] addTodo failed:", e, "item:", item)
+    return false
+  }
 }
 
 export async function updateTodo(id: string, data: Partial<TodoItem>): Promise<boolean> {

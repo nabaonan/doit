@@ -22,17 +22,38 @@ pub struct FetchResponse {
 }
 
 fn db_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
-    // tauri-plugin-sql 使用 BaseDirectory::App，但具体路径取决于平台和版本
-    // 尝试多个可能的路径，选择第一个存在的文件（非空）
+    // 打印所有候选路径，用于诊断
+    eprintln!("[db_path] === 诊断所有路径 ===");
+    eprintln!("[db_path] app_data_dir: {:?}", app.path().app_data_dir().ok());
+    eprintln!("[db_path] app_config_dir: {:?}", app.path().app_config_dir().ok());
+    eprintln!("[db_path] app_local_data_dir: {:?}", app.path().app_local_data_dir().ok());
+
+    // 列出所有候选 db 文件路径
     let candidates = [
         ("app_data_dir", app.path().app_data_dir().ok().map(|p| p.join("doit.db"))),
         ("app_config_dir", app.path().app_config_dir().ok().map(|p| p.join("doit.db"))),
         ("app_local_data_dir", app.path().app_local_data_dir().ok().map(|p| p.join("doit.db"))),
     ];
 
-    let last_error = "未找到数据库文件".to_string();
+    for (label, path_opt) in &candidates {
+        if let Some(ref path) = path_opt {
+            if path.exists() {
+                let size = std::fs::metadata(path).map(|m| m.len()).unwrap_or(0);
+                let wal = path.with_extension("db-wal");
+                let shm = path.with_extension("db-shm");
+                let wal_size = std::fs::metadata(&wal).map(|m| m.len()).unwrap_or(0);
+                let shm_size = std::fs::metadata(&shm).map(|m| m.len()).unwrap_or(0);
+                eprintln!(
+                    "[db_path] {}: db={} (size={}) wal_size={} shm_size={}",
+                    label, path.display(), size, wal_size, shm_size
+                );
+            } else {
+                eprintln!("[db_path] {}: {} (NOT EXISTS)", label, path.display());
+            }
+        }
+    }
 
-    for (_label, path_opt) in &candidates {
+    for (label, path_opt) in &candidates {
         if let Some(ref path) = path_opt {
             if path.exists() {
                 let size = std::fs::metadata(path).map(|m| m.len()).unwrap_or(0);
@@ -43,12 +64,74 @@ fn db_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
         }
     }
 
-    // 返回 app_local_data_dir 的路径（即使文件不存在，让调用方处理）
     if let Some(ref path) = candidates[2].1 {
         return Ok(path.clone());
     }
 
-    Err(last_error)
+    Err("未找到数据库文件".to_string())
+}
+
+/// 独立诊断命令：列出所有可能的 db 路径以及伴随的 wal/shm 文件大小
+/// 前端可在弹窗打开时调用，立即在终端打印诊断信息
+#[tauri::command]
+fn diagnose_db_paths(app: tauri::AppHandle) -> Result<String, String> {
+    eprintln!("[diagnose] === 诊断 db 路径 ===");
+    eprintln!("[diagnose] app_data_dir: {:?}", app.path().app_data_dir().ok());
+    eprintln!("[diagnose] app_config_dir: {:?}", app.path().app_config_dir().ok());
+    eprintln!("[diagnose] app_local_data_dir: {:?}", app.path().app_local_data_dir().ok());
+
+    let candidates = [
+        ("app_data_dir", app.path().app_data_dir().ok().map(|p| p.join("doit.db"))),
+        ("app_config_dir", app.path().app_config_dir().ok().map(|p| p.join("doit.db"))),
+        ("app_local_data_dir", app.path().app_local_data_dir().ok().map(|p| p.join("doit.db"))),
+    ];
+
+    let mut report = String::new();
+    for (label, path_opt) in &candidates {
+        if let Some(ref path) = path_opt {
+            let exists = path.exists();
+            let size = std::fs::metadata(path).map(|m| m.len()).unwrap_or(0);
+            let wal = path.with_extension("db-wal");
+            let shm = path.with_extension("db-shm");
+            let wal_size = std::fs::metadata(&wal).map(|m| m.len()).unwrap_or(0);
+            let shm_size = std::fs::metadata(&shm).map(|m| m.len()).unwrap_or(0);
+            // 文件最后修改时间
+            let mtime = std::fs::metadata(path)
+                .and_then(|m| m.modified())
+                .ok()
+                .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                .map(|d| d.as_secs())
+                .unwrap_or(0);
+            // 用只读方式打开，列出表名和行数
+            let mut table_info = String::new();
+            if exists && size > 0 {
+                if let Ok(conn) = rusqlite::Connection::open_with_flags(
+                    path,
+                    rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
+                ) {
+                    if let Ok(mut stmt) = conn.prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name") {
+                        if let Ok(rows) = stmt.query_map([], |row| row.get::<_, String>(0)) {
+                            for r in rows.flatten() {
+                                let cnt: i64 = conn
+                                    .query_row(&format!("SELECT count(*) FROM \"{}\"", r), [], |row| row.get(0))
+                                    .unwrap_or(-1);
+                                table_info.push_str(&format!("{}={} ", r, cnt));
+                            }
+                        }
+                    }
+                }
+            }
+            let line = format!(
+                "{}: path={} exists={} db_size={} mtime={} wal_size={} shm_size={} tables=[{}]",
+                label, path.display(), exists, size, mtime, wal_size, shm_size, table_info
+            );
+            eprintln!("[diagnose] {}", line);
+            report.push_str(&line);
+            report.push('\n');
+        }
+    }
+
+    Ok(report)
 }
 
 fn make_client() -> Result<reqwest::Client, String> {
@@ -124,36 +207,9 @@ async fn upload_db_to_webdav(
 ) -> Result<String, String> {
     let db = db_path(&app)?;
 
-    // 在读 db 文件前先做 WAL checkpoint，把 wal 文件中的最新数据合并到主 db 文件
-    // 注意：必须在 closeDb 之后调用，否则会因为 SQLITE_BUSY 失败
-    {
-        let conn = rusqlite::Connection::open(&db)
-            .map_err(|e| format!("打开数据库失败: {}", e))?;
-        // 设置较短的 busy timeout，让它快速失败
-        conn.busy_timeout(std::time::Duration::from_millis(500)).ok();
-        let _ = conn.execute("PRAGMA wal_checkpoint(PASSIVE)", []);
-
-        // 清理非 todos/settings 的表（_sqlx_migrations 等系统表）
-        let tables: Vec<String> = conn
-            .prepare("SELECT name FROM sqlite_master WHERE type='table'")
-            .map_err(|e| format!("查询表失败: {}", e))?
-            .query_map([], |row| row.get::<_, String>(0))
-            .map_err(|e| format!("读取表列表失败: {}", e))?
-            .filter_map(|r| r.ok())
-            .collect();
-
-        for name in &tables {
-            if name != "todos" && name != "settings" {
-                let sql = format!("DROP TABLE IF EXISTS \"{}\"", name);
-                let _ = conn.execute(&sql, []);
-            }
-        }
-        // 再次 checkpoint 确保 DROP 写入主文件
-        let _ = conn.execute("PRAGMA wal_checkpoint(PASSIVE)", []);
-    }
-
-    let data = std::fs::read(&db).map_err(|e| format!("读取数据库文件失败: {}", e))?;
-    let data_len = data.len();
+    // 把 db 复制到临时文件，对临时文件做清理 + VACUUM + checkpoint，
+    // 这样不会和 tauri-plugin-sql 抢锁，且 WAL 数据已合并到主文件
+    let (data, data_len) = prepare_clean_db_bytes(&db)?;
     eprintln!("[upload_db] db path: {}, bytes: {}", db.display(), data_len);
     if data_len == 0 {
         return Err(format!("数据库文件为空: {}", db.display()));
@@ -255,45 +311,153 @@ async fn clean_export_db(
     target_path: String,
 ) -> Result<String, String> {
     let db = db_path(&app)?;
+    let (bytes, _len) = prepare_clean_db_bytes(&db)?;
+    std::fs::write(&target_path, &bytes)
+        .map_err(|e| format!("写入目标文件失败: {}", e))?;
+    Ok(format!("已导出干净的数据库 ({} bytes)", bytes.len()))
+}
+
+/// 把 db 文件复制到临时文件（正确处理 wal 文件），对临时文件做清理 +
+/// VACUUM + checkpoint，然后返回临时文件的字节。
+/// 这样不与 tauri-plugin-sql 抢锁，且确保 WAL 数据已合并。
+fn prepare_clean_db_bytes(db: &PathBuf) -> Result<(Vec<u8>, usize), String> {
     if !db.exists() {
         return Err(format!("数据库文件不存在: {}", db.display()));
     }
-    let conn = rusqlite::Connection::open(&db)
-        .map_err(|e| format!("打开数据库失败: {}", e))?;
 
-    let mut tables: Vec<String> = conn
-        .prepare("SELECT name FROM sqlite_master WHERE type='table'")
-        .map_err(|e| format!("查询表失败: {}", e))?
-        .query_map([], |row| row.get::<_, String>(0))
-        .map_err(|e| format!("读取表列表失败: {}", e))?
-        .filter_map(|r| r.ok())
-        .collect();
+    // 临时文件路径：与原 db 在同目录，避免跨盘符复制
+    let temp_path = db.with_extension("db.upload.tmp");
+    let temp_wal = db.with_extension("db.upload.tmp-wal");
+    let temp_shm = db.with_extension("db.upload.tmp-shm");
 
-    let mut dropped: Vec<String> = Vec::new();
-    for name in &tables {
-        if name != "todos" && name != "settings" {
-            let sql = format!("DROP TABLE IF EXISTS \"{}\"", name);
-            if conn.execute(&sql, []).is_ok() {
-                dropped.push(name.clone());
+    let result = (|| -> Result<(Vec<u8>, usize), String> {
+        // 删除可能残留的临时文件
+        let _ = std::fs::remove_file(&temp_path);
+        let _ = std::fs::remove_file(&temp_wal);
+        let _ = std::fs::remove_file(&temp_shm);
+
+        // 第零步：先打印源 db 的元信息 + 用源 db 自己的连接查询行数
+        // 关键：必须设置 PRAGMA journal_mode = WAL，否则 rusqlite 默认 DELETE 模式
+        // 看不到 tauri-plugin-sql 写入 wal 文件的数据
+        {
+            let src_conn = rusqlite::Connection::open(db)
+                .map_err(|e| format!("打开源数据库失败: {}", e))?;
+            src_conn.busy_timeout(std::time::Duration::from_secs(2)).ok();
+            // 关键：切换到 WAL 模式才能读到 tauri-plugin-sql 的 wal 数据
+            let _ = src_conn.execute_batch("PRAGMA journal_mode = WAL;");
+            let src_todos: i64 = src_conn
+                .query_row("SELECT count(*) FROM todos", [], |row| row.get(0))
+                .unwrap_or(-2);
+            let src_settings: i64 = src_conn
+                .query_row("SELECT count(*) FROM settings", [], |row| row.get(0))
+                .unwrap_or(-2);
+            eprintln!(
+                "[prepare_clean_db] 源 db: {} 直接查询: todos={} settings={} db_size={}",
+                db.display(),
+                src_todos,
+                src_settings,
+                std::fs::metadata(db).map(|m| m.len()).unwrap_or(0)
+            );
+            drop(src_conn);
+        }
+
+        // 第一步：用 WAL 模式打开源 db，然后主动做 wal_checkpoint 把 wal 数据合并到主文件
+        {
+            let conn = rusqlite::Connection::open(db)
+                .map_err(|e| format!("打开源数据库失败: {}", e))?;
+            conn.busy_timeout(std::time::Duration::from_secs(2)).ok();
+            let _ = conn.execute_batch("PRAGMA journal_mode = WAL;");
+            let _ = conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);");
+            drop(conn);
+            eprintln!(
+                "[prepare_clean_db] checkpoint 完成, db size: {}",
+                std::fs::metadata(db).map(|m| m.len()).unwrap_or(0)
+            );
+        }
+
+        // 第二步：用 Backup API 把源 db 复制到临时文件
+        // 此时源 db 的主文件已包含全部数据（wal 已合并）
+        let mut src = rusqlite::Connection::open(db)
+            .map_err(|e| format!("打开源数据库(备份模式)失败: {}", e))?;
+        src.execute_batch("PRAGMA journal_mode = WAL;")
+            .map_err(|e| format!("设置 WAL 模式失败: {}", e))?;
+        let mut dst = rusqlite::Connection::open(&temp_path)
+            .map_err(|e| format!("创建临时数据库失败: {}", e))?;
+        dst.execute_batch("PRAGMA journal_mode = WAL;")
+            .map_err(|e| format!("设置临时文件 WAL 模式失败: {}", e))?;
+
+        {
+            use rusqlite::backup::Backup;
+            let backup = Backup::new(&src, &mut dst)
+                .map_err(|e| format!("启动备份失败: {}", e))?;
+            loop {
+                match backup.step(100) {
+                    Ok(rusqlite::backup::StepResult::Done) => break,
+                    Ok(_) => continue,
+                    Err(e) => return Err(format!("执行备份失败: {}", e)),
+                }
             }
         }
-    }
+        drop(src);
+        let _ = dst.close();
 
-    conn.execute("VACUUM", []).ok();
-    conn.execute("PRAGMA wal_checkpoint(TRUNCATE)", []).ok();
-    drop(conn);
+        // 验证备份文件是否真的包含数据
+        {
+            let verify = rusqlite::Connection::open(&temp_path)
+                .map_err(|e| format!("验证打开失败: {}", e))?;
+            let _ = verify.execute_batch("PRAGMA journal_mode = WAL;");
+            let todos_count: i64 = verify
+                .query_row("SELECT count(*) FROM todos", [], |row| row.get(0))
+                .unwrap_or(-1);
+            let settings_count: i64 = verify
+                .query_row("SELECT count(*) FROM settings", [], |row| row.get(0))
+                .unwrap_or(-1);
+            eprintln!(
+                "[prepare_clean_db] 备份验证: todos={} settings={}",
+                todos_count, settings_count
+            );
+            if todos_count == 0 && settings_count == 0 {
+                return Err("警告：备份文件中没有任何数据，可能是空数据库".to_string());
+            }
+        }
 
-    let bytes = std::fs::read(&db).map_err(|e| format!("读取清理后的数据库失败: {}", e))?;
-    std::fs::write(&target_path, &bytes)
-        .map_err(|e| format!("写入目标文件失败: {}", e))?;
+        // 第三步：清理非 todos/settings 的表
+        let conn = rusqlite::Connection::open(&temp_path)
+            .map_err(|e| format!("重新打开临时文件失败: {}", e))?;
+        let _ = conn.execute_batch("PRAGMA journal_mode = WAL;");
 
-    tables.retain(|n| n == "todos" || n == "settings");
-    Ok(format!(
-        "已导出干净的数据库 ({} bytes)，仅包含 {} (共 {} 个内部表已移除)",
-        bytes.len(),
-        tables.join(", "),
-        dropped.len()
-    ))
+        let tables: Vec<String> = conn
+            .prepare("SELECT name FROM sqlite_master WHERE type='table'")
+            .map_err(|e| format!("查询表失败: {}", e))?
+            .query_map([], |row| row.get::<_, String>(0))
+            .map_err(|e| format!("读取表列表失败: {}", e))?
+            .filter_map(|r| r.ok())
+            .collect();
+
+        for name in &tables {
+            if name != "todos" && name != "settings" {
+                let sql = format!("DROP TABLE IF EXISTS \"{}\"", name);
+                let _ = conn.execute(&sql, []);
+            }
+        }
+
+        // VACUUM + checkpoint
+        let _ = conn.execute("VACUUM", []);
+        let _ = conn.execute("PRAGMA wal_checkpoint(TRUNCATE)", []);
+        drop(conn);
+
+        let bytes = std::fs::read(&temp_path)
+            .map_err(|e| format!("读取清理后的数据库失败: {}", e))?;
+        let len = bytes.len();
+        Ok((bytes, len))
+    })();
+
+    // 清理临时文件及其 wal/shm
+    let _ = std::fs::remove_file(&temp_path);
+    let _ = std::fs::remove_file(&temp_wal);
+    let _ = std::fs::remove_file(&temp_shm);
+
+    result
 }
 
 pub fn run() {
@@ -306,7 +470,8 @@ pub fn run() {
             tauri_fetch,
             upload_db_to_webdav,
             download_db_from_webdav,
-            clean_export_db
+            clean_export_db,
+            diagnose_db_paths
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

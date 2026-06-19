@@ -106,7 +106,9 @@ export async function testConnection(
   return { ok: false, message: "连接失败：" + allErrors }
 }
 
-// ========== 同步 DB 文件（Rust 侧直接处理二进制） ==========
+// ========== 同步 .db 文件（Rust 侧直接处理二进制） ==========
+// 应用数据存储在 SQLite（%APPDATA%/com.nabaonan.doit/doit.db）。
+// 同步策略：直接把 db 文件通过 WebDAV 上传/下载。
 
 export async function uploadDbBackup(
   url: string,
