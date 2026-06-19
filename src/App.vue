@@ -167,7 +167,14 @@ onMounted(async () => {
       }
     },
   });
-  setNotificationCallback(async (_todoId: string, content: string) => {
+  setNotificationCallback(async (todoId: string, content: string) => {
+    cancelReminderService(todoId);
+    const todo = todos.value.find((t) => t.id === todoId);
+    if (todo) {
+      todo.remindAt = null;
+      await updateTodo(todoId, { remindAt: null } as any);
+    }
+
     const isTauri = !!(window as unknown as { __TAURI__?: unknown }).__TAURI__;
     if (isTauri) {
       const { sendNotification, isPermissionGranted, requestPermission } = await import("@tauri-apps/plugin-notification");

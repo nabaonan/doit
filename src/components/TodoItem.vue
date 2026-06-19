@@ -78,10 +78,14 @@ const countdownText = computed(() => {
   if (diff <= 0) return ""
   const hours = Math.floor(diff / 3600)
   const minutes = Math.floor((diff % 3600) / 60)
+  const seconds = diff % 60
   if (hours > 0) {
     return `还剩 ${hours}小时${minutes}分钟`
   }
-  return `还剩 ${minutes}分钟`
+  if (minutes > 0) {
+    return `还剩 ${minutes}分钟${seconds}秒`
+  }
+  return `还剩 ${seconds}秒`
 })
 
 function stopCountdown() {
@@ -91,26 +95,31 @@ function stopCountdown() {
   }
 }
 
-watch(() => props.todo.remindAt, (val) => {
+function startCountdown() {
   stopCountdown()
-  if (val && !props.todo.completed) {
+  const diff = dayjs(props.todo.remindAt).diff(dayjs(), "second")
+  if (!props.todo.remindAt || props.todo.completed || diff <= 0) return
+  countdownTick.value++
+  const interval = diff > 60 ? 60_000 : 1_000
+  countdownTimer = setInterval(() => {
+    const remaining = dayjs(props.todo.remindAt!).diff(dayjs(), "second")
+    if (remaining <= 0) {
+      stopCountdown()
+      return
+    }
     countdownTick.value++
-    countdownTimer = setInterval(() => {
-      countdownTick.value++
-    }, 60_000)
-  }
-}, { immediate: true })
+    if (remaining <= 60 && countdownTimer) {
+      clearInterval(countdownTimer)
+      countdownTimer = setInterval(() => {
+        countdownTick.value++
+      }, 1_000)
+    }
+  }, interval)
+}
 
+watch(() => props.todo.remindAt, startCountdown, { immediate: true })
 watch(() => props.todo.completed, (val) => {
-  if (val) {
-    stopCountdown()
-  } else if (props.todo.remindAt) {
-    stopCountdown()
-    countdownTick.value++
-    countdownTimer = setInterval(() => {
-      countdownTick.value++
-    }, 60_000)
-  }
+  if (val) stopCountdown()
 })
 
 onUnmounted(stopCountdown)

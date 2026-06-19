@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, shallowRef, watch } from "vue";
+import { ref, watch } from "vue";
 import dayjs from "dayjs";
 import customParseFormat from "dayjs/plugin/customParseFormat";
 
@@ -21,14 +21,14 @@ const emit = defineEmits<{
 type RemindMode = "time" | "duration";
 
 const mode = ref<RemindMode>("time");
-const selectedTime = shallowRef<dayjs.Dayjs>();
+const timeValue = ref<string>("");
 const durationValue = ref<number>(1);
 const durationUnit = ref<"hour" | "minute" | "second">("hour");
 
 watch(() => props.open, (val) => {
   if (val) {
     mode.value = "time";
-    selectedTime.value = undefined;
+    timeValue.value = "";
     durationValue.value = 1;
     durationUnit.value = "hour";
   }
@@ -40,7 +40,7 @@ const unitOptions = [
   { value: "second", label: "秒" },
 ];
 
-function disabledTime(now: dayjs.Dayjs) {
+function getDisabledTime(now: dayjs.Dayjs) {
   const currentHour = now.hour();
   const currentMinute = now.minute();
   const hours: number[] = [];
@@ -56,9 +56,9 @@ function disabledTime(now: dayjs.Dayjs) {
 
 function onConfirm() {
   if (mode.value === "time") {
-    if (!selectedTime.value) return
+    if (!timeValue.value) return
     const today = dayjs().format("YYYY-MM-DD")
-    const remindAt = dayjs(`${today} ${selectedTime.value.format("HH:mm")}`)
+    const remindAt = dayjs(`${today} ${timeValue.value}`)
     if (remindAt.isBefore(dayjs())) return
     emit("confirm", remindAt.toISOString())
   } else {
@@ -89,10 +89,11 @@ function onClose() {
 
       <div v-if="mode === 'time'">
         <a-time-picker
-          v-model:value="selectedTime"
+          v-model:value="timeValue"
+          value-format="HH:mm"
           format="HH:mm"
           :minute-step="5"
-          :disabled-time="disabledTime"
+          :disabled-time="getDisabledTime"
           class="w-full"
           placeholder="选择提醒时刻"
         />
@@ -123,7 +124,7 @@ function onClose() {
         <a-button @click="onClose">取消</a-button>
         <a-button
           type="primary"
-          :disabled="mode === 'time' && !selectedTime"
+          :disabled="mode === 'time' && !timeValue"
           @click="onConfirm"
         >
           确认

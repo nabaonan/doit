@@ -49,7 +49,9 @@ function mergeNested(existing: TodoItemNode[], incoming: TodoItemNode[]) {
         existingNode.completedAt = inc.completedAt;
         existingNode.order = inc.order;
         existingNode.tagId = inc.tagId;
+        existingNode.catId = inc.catId;
         existingNode.parentId = inc.parentId;
+        existingNode.remindAt = inc.remindAt;
         merge(existingNode.children, inc.children);
         list.push(existingNode);
         existingMap.delete(inc.id);
