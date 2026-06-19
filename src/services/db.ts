@@ -122,7 +122,12 @@ export async function getDb() {
     const mod = await import("@tauri-apps/plugin-sql")
     const Database = mod.default
     db = await Database.load("sqlite:doit.db")
-    await (db as { execute: (sql: string) => Promise<void> }).execute(
+    const exec = (sql: string) => (db as { execute: (sql: string) => Promise<void> }).execute(sql)
+    const select = (sql: string) => (db as { select: (sql: string) => Promise<unknown> }).select(sql)
+
+    await cleanupDuplicateTables(exec, select)
+
+    await exec(
       `CREATE TABLE IF NOT EXISTS todos (
         id TEXT PRIMARY KEY,
         content TEXT NOT NULL,
@@ -135,7 +140,7 @@ export async function getDb() {
         parent_id TEXT
       )`
     )
-    await (db as { execute: (sql: string) => Promise<void> }).execute(
+    await exec(
       `CREATE TABLE IF NOT EXISTS settings (
         key TEXT PRIMARY KEY,
         value TEXT NOT NULL
@@ -145,6 +150,57 @@ export async function getDb() {
   } catch {
     db = createLocalDb()
     return db
+  }
+}
+
+async function cleanupDuplicateTables(
+  exec: (sql: string) => Promise<void>,
+  select: (sql: string) => Promise<unknown>
+) {
+  try {
+    const tables = (await select(
+      "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
+    )) as Array<{ name: string }>
+    const todoTables = tables
+      .map((t) => t.name)
+      .filter((n) => n === "todos" || /^todos_\d+$/.test(n) || /^todos\d+$/.test(n))
+    const settingsTables = tables
+      .map((t) => t.name)
+      .filter((n) => n === "settings" || /^settings_\d+$/.test(n) || /^settings\d+$/.test(n))
+
+    if (todoTables.length > 1 || settingsTables.length > 1) {
+      console.warn("[doit] 发现重复表，开始合并:", { todoTables, settingsTables })
+
+      if (todoTables.length > 1) {
+        const keep = "todos"
+        const dups = todoTables.filter((n) => n !== keep)
+        for (const dup of dups) {
+          try {
+            await exec(`INSERT OR IGNORE INTO "${keep}" SELECT * FROM "${dup}"`)
+            await exec(`DROP TABLE "${dup}"`)
+            console.log(`[doit] 已合并并删除重复表 ${dup}`)
+          } catch (e) {
+            console.warn(`[doit] 处理重复表 ${dup} 失败:`, e)
+          }
+        }
+      }
+
+      if (settingsTables.length > 1) {
+        const keep = "settings"
+        const dups = settingsTables.filter((n) => n !== keep)
+        for (const dup of dups) {
+          try {
+            await exec(`INSERT OR REPLACE INTO "${keep}" SELECT * FROM "${dup}"`)
+            await exec(`DROP TABLE "${dup}"`)
+            console.log(`[doit] 已合并并删除重复表 ${dup}`)
+          } catch (e) {
+            console.warn(`[doit] 处理重复表 ${dup} 失败:`, e)
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.warn("[doit] 清理重复表失败:", e)
   }
 }
 

@@ -64,11 +64,15 @@ async function handleUpload() {
   }
   uploading.value = true;
   try {
+    // 关闭 db 连接，确保数据被 flush 到磁盘（WAL checkpoint）
+    await closeDb();
     const result = await uploadDbBackup(webdavUrl, webdavUsername, webdavPassword);
     message.success(result || "数据库备份上传成功");
   } catch (e: any) {
     message.error(e.message || "上传失败");
   } finally {
+    // 重新打开 db 连接
+    await getDb();
     uploading.value = false;
   }
 }

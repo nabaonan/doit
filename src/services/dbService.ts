@@ -101,12 +101,8 @@ export async function exportDatabase(): Promise<void> {
   const isTauri = !!(window as unknown as { __TAURI__?: unknown }).__TAURI__
   if (isTauri) {
     try {
-      const { appConfigDir } = await import("@tauri-apps/api/path")
       const { save } = await import("@tauri-apps/plugin-dialog")
-      const { readFile, writeFile } = await import("@tauri-apps/plugin-fs")
-
-      const configDir = await appConfigDir()
-      const dbPath = `${configDir}doit.db`
+      const { invoke } = await import("@tauri-apps/api/core")
 
       const filePath = await save({
         defaultPath: `doit-backup-${dayjs().format("YYYY-MM-DD")}.db`,
@@ -115,8 +111,8 @@ export async function exportDatabase(): Promise<void> {
 
       if (!filePath) return
 
-      const data = await readFile(dbPath)
-      await writeFile(filePath, data)
+      const result = await invoke<string>("clean_export_db", { targetPath: filePath })
+      console.log("[doit] 导出结果:", result)
       return
     } catch (e) {
       console.error("Tauri 导出失败", e)

@@ -17,7 +17,6 @@ import BackupDialog from "./components/BackupDialog.vue";
 import type { TodoItem, AppSettings, Category } from "./types";
 import { init as initTodos, getAllTodos, addTodo, updateTodo, deleteTodo, reorderTodos, sortTodos, clearAllTodos } from "./services/todoService";
 import { init as initSettings, getSettings, saveSettings } from "./services/settingsService";
-import { startAutoSync, stopAutoSync, setSyncCallback } from "./services/autoSyncService";
 import { exportDatabase, importDatabase } from "./services/dbService";
 
 const todos = ref<TodoItem[]>([]);
@@ -114,8 +113,6 @@ function startSystemThemeTimer() {
   }, 60_000);
 }
 
-const syncStatus = ref("");
-
 onMounted(async () => {
   try {
     await initTodos();
@@ -128,19 +125,6 @@ onMounted(async () => {
   }
   applyTheme(settings.value.theme);
   startSystemThemeTimer();
-
-  setSyncCallback({
-    onStatusChange: (status) => {
-      syncStatus.value = status;
-      if (status === "同步完成") {
-        setTimeout(() => { syncStatus.value = ""; }, 3000);
-      }
-    },
-  });
-
-  if (settings.value.cloudSync.enabled && settings.value.cloudSync.provider === "webdav" && settings.value.cloudSync.webdavUrl) {
-    startAutoSync(() => settings.value);
-  }
 });
 
 onUnmounted(() => {
@@ -148,27 +132,10 @@ onUnmounted(() => {
     clearInterval(systemThemeTimer);
     systemThemeTimer = null;
   }
-  stopAutoSync();
 });
 
 watch(() => settings.value.theme, (newTheme) => {
   applyTheme(newTheme);
-});
-
-watch(() => settings.value.cloudSync.enabled, (enabled) => {
-  if (enabled && settings.value.cloudSync.provider === "webdav" && settings.value.cloudSync.webdavUrl) {
-    startAutoSync(() => settings.value);
-  } else {
-    stopAutoSync();
-  }
-});
-
-watch(() => settings.value.cloudSync.webdavUrl, () => {
-  if (settings.value.cloudSync.enabled && settings.value.cloudSync.provider === "webdav" && settings.value.cloudSync.webdavUrl) {
-    startAutoSync(() => settings.value);
-  } else {
-    stopAutoSync();
-  }
 });
 
 function handleSelectCat(catId: string | null) {
@@ -386,12 +353,6 @@ async function handleSaveSettings(newSettings: AppSettings) {
   await saveSettings(newSettings);
   settings.value = newSettings;
   showSettings.value = false;
-
-  if (newSettings.cloudSync.enabled && newSettings.cloudSync.provider === "webdav" && newSettings.cloudSync.webdavUrl) {
-    startAutoSync(() => settings.value);
-  } else {
-    stopAutoSync();
-  }
 }
 
 async function handleClearData() {
@@ -479,12 +440,6 @@ async function handleDataChanged() {
             @save="handleSaveCategories"
           />
           <!-- 同步状态栏 -->
-          <div
-            v-if="syncStatus"
-            class="h-7 flex items-center justify-center text-xs bg-[var(--primary)] text-[var(--primary-foreground)] shrink-0"
-          >
-            {{ syncStatus }}
-          </div>
           <BackupDialog
             v-model:open="showBackup"
             :settings="settings"
