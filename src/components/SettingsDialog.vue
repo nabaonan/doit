@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch, h, nextTick } from "vue";
 import { Modal } from "antdv-next";
-import { KeyOutlined, SunOutlined, MoonOutlined, MonitorOutlined, DownloadOutlined, UploadOutlined, DeleteOutlined } from "@antdv-next/icons";
+import { KeyOutlined, SunOutlined, MoonOutlined, MonitorOutlined, DownloadOutlined, UploadOutlined, DeleteOutlined, LockOutlined, ExclamationCircleOutlined } from "@antdv-next/icons";
 import type { AppSettings, Tag } from "../types";
 
 const props = defineProps<{
@@ -33,6 +33,14 @@ const providerOptions = [
   { value: "local_folder", label: "本地文件夹" },
   { value: "webdav", label: "WebDAV" },
 ];
+
+const backupUnitOptions = [
+  { value: "minute", label: "分钟" },
+  { value: "hour", label: "小时" },
+  { value: "day", label: "天" },
+];
+
+const cloudSyncEnabled = computed(() => localSettings.value.cloudSync.enabled);
 
 const colorPickerPresets = computed(() => [
   {
@@ -350,6 +358,88 @@ function confirmClearData() {
               size="small"
             />
           </template>
+        </div>
+      </div>
+
+      <!-- 定时备份 -->
+      <div>
+        <h3 class="text-xs font-medium text-[var(--muted-foreground)] mb-2 flex items-center gap-1.5">
+          定时备份
+          <a-tooltip v-if="!cloudSyncEnabled" title="需先启用云同步">
+            <LockOutlined :style="{ fontSize: '12px', color: 'var(--muted-foreground)' }" />
+          </a-tooltip>
+        </h3>
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-sm" :class="{ 'text-[var(--muted-foreground)]': !cloudSyncEnabled }">
+            启用定时上传
+          </span>
+          <a-switch
+            v-model:checked="localSettings.autoBackup.enabled"
+            :disabled="!cloudSyncEnabled"
+            size="small"
+          />
+        </div>
+        <div v-if="localSettings.autoBackup.enabled" class="flex flex-col gap-2">
+          <div class="flex items-center gap-2">
+            <span class="text-sm shrink-0">每</span>
+            <a-input-number
+              v-model:value="localSettings.autoBackup.interval"
+              :min="1"
+              :max="999"
+              :step="1"
+              :disabled="!cloudSyncEnabled"
+              size="small"
+              class="flex-1"
+            />
+            <a-select
+              v-model:value="localSettings.autoBackup.unit"
+              :options="backupUnitOptions"
+              :disabled="!cloudSyncEnabled"
+              size="small"
+              class="w-24"
+            />
+          </div>
+        </div>
+      </div>
+
+      <!-- 定时恢复 -->
+      <div>
+        <h3 class="text-xs font-medium text-[var(--muted-foreground)] mb-2 flex items-center gap-1.5">
+          定时恢复
+          <a-tooltip color="warning" title="自动恢复会覆盖本地数据，请谨慎启用">
+            <ExclamationCircleOutlined :style="{ fontSize: '12px' }" />
+          </a-tooltip>
+        </h3>
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-sm" :class="{ 'text-[var(--muted-foreground)]': !cloudSyncEnabled }">
+            启用定时下载
+          </span>
+          <a-switch
+            v-model:checked="localSettings.autoRestore.enabled"
+            :disabled="!cloudSyncEnabled"
+            size="small"
+          />
+        </div>
+        <div v-if="localSettings.autoRestore.enabled" class="flex flex-col gap-2">
+          <div class="flex items-center gap-2">
+            <span class="text-sm shrink-0">每</span>
+            <a-input-number
+              v-model:value="localSettings.autoRestore.interval"
+              :min="1"
+              :max="999"
+              :step="1"
+              :disabled="!cloudSyncEnabled"
+              size="small"
+              class="flex-1"
+            />
+            <a-select
+              v-model:value="localSettings.autoRestore.unit"
+              :options="backupUnitOptions"
+              :disabled="!cloudSyncEnabled"
+              size="small"
+              class="w-24"
+            />
+          </div>
         </div>
       </div>
 

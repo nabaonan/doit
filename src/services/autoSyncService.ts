@@ -1,56 +1,116 @@
-import { uploadDbBackup } from "./webdavService"
+import { uploadDbBackup, downloadDbBackup } from "./webdavService"
+import { closeDb, getDb } from "./db"
+import { getNextRunTime } from "../utils/cron"
+import type { AppSettings } from "../types"
 
-const SYNC_INTERVAL_MS = 5 * 60 * 1000
+let backupTimer: ReturnType<typeof setTimeout> | null = null
+let restoreTimer: ReturnType<typeof setTimeout> | null = null
+let getSettings: (() => AppSettings) | null = null
+let onBackupStatus: ((status: string) => void) | null = null
+let onRestoreStatus: ((status: string) => void) | null = null
+let onDataChanged: (() => void) | null = null
 
-type SyncCallback = {
-  onStatusChange?: (status: string) => void
+export function setCallbacks(opts: {
+  onBackupStatus?: (status: string) => void
+  onRestoreStatus?: (status: string) => void
+  onDataChanged?: () => void
+}) {
+  onBackupStatus = opts.onBackupStatus ?? null
+  onRestoreStatus = opts.onRestoreStatus ?? null
+  onDataChanged = opts.onDataChanged ?? null
 }
 
-let timer: ReturnType<typeof setInterval> | null = null
-let callback: SyncCallback | null = null
-
-export function setSyncCallback(cb: SyncCallback) {
-  callback = cb
+export function startScheduler(settings: () => AppSettings) {
+  stopScheduler()
+  getSettings = settings
+  scheduleNextBackup()
+  scheduleNextRestore()
 }
 
-export function startAutoSync(
-  settings: () => { cloudSync: { enabled: boolean; provider: string; webdavUrl: string; webdavUsername: string; webdavPassword: string } }
-) {
-  stopAutoSync()
-  runSync(settings)
-  timer = setInterval(() => runSync(settings), SYNC_INTERVAL_MS)
+export function stopScheduler() {
+  if (backupTimer !== null) {
+    clearTimeout(backupTimer)
+    backupTimer = null
+  }
+  if (restoreTimer !== null) {
+    clearTimeout(restoreTimer)
+    restoreTimer = null
+  }
+  getSettings = null
 }
 
-export function stopAutoSync() {
-  if (timer !== null) {
-    clearInterval(timer)
-    timer = null
+export function restartScheduler(settings: () => AppSettings) {
+  if (getSettings) {
+    startScheduler(settings)
   }
 }
 
-export function isAutoSyncRunning(): boolean {
-  return timer !== null
+function canRun(): boolean {
+  if (!getSettings) return false
+  const s = getSettings()
+  return (
+    s.cloudSync.enabled &&
+    s.cloudSync.provider === "webdav" &&
+    !!s.cloudSync.webdavUrl
+  )
 }
 
-async function runSync(
-  settings: () => { cloudSync: { enabled: boolean; provider: string; webdavUrl: string; webdavUsername: string; webdavPassword: string } }
-) {
-  const { cloudSync } = settings()
+function scheduleNextBackup() {
+  if (!getSettings || !canRun()) return
+  const ab = getSettings().autoBackup
+  if (!ab.enabled) return
+  const next = getNextRunTime(ab.unit, ab.interval)
+  const delay = Math.max(1000, next.getTime() - Date.now())
+  backupTimer = setTimeout(async () => {
+    await runBackup()
+    scheduleNextBackup()
+  }, delay)
+}
 
-  if (cloudSync.provider !== "webdav" || !cloudSync.webdavUrl) {
-    return
-  }
+function scheduleNextRestore() {
+  if (!getSettings || !canRun()) return
+  const ar = getSettings().autoRestore
+  if (!ar.enabled) return
+  const next = getNextRunTime(ar.unit, ar.interval)
+  const delay = Math.max(1000, next.getTime() - Date.now())
+  restoreTimer = setTimeout(async () => {
+    await runRestore()
+    scheduleNextRestore()
+  }, delay)
+}
 
-  if (!cloudSync.enabled) {
-    return
-  }
-
-  callback?.onStatusChange?.("正在同步...")
-
+async function runBackup() {
+  if (!getSettings) return
+  const { cloudSync } = getSettings()
+  onBackupStatus?.("正在自动备份...")
   try {
-    await uploadDbBackup(cloudSync.webdavUrl, cloudSync.webdavUsername, cloudSync.webdavPassword)
-    callback?.onStatusChange?.("同步完成")
+    await uploadDbBackup(
+      cloudSync.webdavUrl,
+      cloudSync.webdavUsername,
+      cloudSync.webdavPassword
+    )
+    onBackupStatus?.("自动备份完成")
   } catch {
-    callback?.onStatusChange?.("同步失败")
+    onBackupStatus?.("自动备份失败")
+  }
+}
+
+async function runRestore() {
+  if (!getSettings) return
+  const { cloudSync } = getSettings()
+  onRestoreStatus?.("正在自动恢复...")
+  try {
+    await closeDb()
+    await new Promise((r) => setTimeout(r, 300))
+    await downloadDbBackup(
+      cloudSync.webdavUrl,
+      cloudSync.webdavUsername,
+      cloudSync.webdavPassword
+    )
+    await getDb()
+    onDataChanged?.()
+    onRestoreStatus?.("自动恢复完成")
+  } catch {
+    onRestoreStatus?.("自动恢复失败")
   }
 }

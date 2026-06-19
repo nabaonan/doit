@@ -18,6 +18,8 @@ import type { TodoItem, AppSettings, Category } from "./types";
 import { init as initTodos, getAllTodos, addTodo, updateTodo, deleteTodo, reorderTodos, sortTodos, clearAllTodos } from "./services/todoService";
 import { init as initSettings, getSettings, saveSettings } from "./services/settingsService";
 import { exportDatabase, importDatabase } from "./services/dbService";
+import { startScheduler, stopScheduler, setCallbacks as setSchedulerCallbacks } from "./services/autoSyncService";
+import { message } from "antdv-next";
 
 const todos = ref<TodoItem[]>([]);
 const togglingIds = new Set<string>();
@@ -43,6 +45,16 @@ const settings = ref<AppSettings>({
     webdavUsername: "",
     webdavPassword: "",
     localSyncPath: "",
+  },
+  autoBackup: {
+    enabled: false,
+    interval: 30,
+    unit: "minute",
+  },
+  autoRestore: {
+    enabled: false,
+    interval: 30,
+    unit: "minute",
   },
 });
 const showSettings = ref(false);
@@ -125,6 +137,30 @@ onMounted(async () => {
   }
   applyTheme(settings.value.theme);
   startSystemThemeTimer();
+
+  // 启动自动备份/恢复调度器
+  setSchedulerCallbacks({
+    onBackupStatus: (s) => {
+      if (s === "自动备份完成") message.success(s);
+      else if (s === "自动备份失败") message.error(s);
+    },
+    onRestoreStatus: (s) => {
+      if (s === "自动恢复完成") message.success(s);
+      else if (s === "自动恢复失败") message.error(s);
+    },
+    onDataChanged: async () => {
+      // 自动恢复后重新加载 todos 和 settings
+      try {
+        todos.value = await getAllTodos();
+        settings.value = await getSettings();
+      } catch (e) {
+        console.warn("[doit] 刷新数据失败:", e);
+      }
+    },
+  });
+  if (settings.value.cloudSync.enabled) {
+    startScheduler(() => settings.value);
+  }
 });
 
 onUnmounted(() => {
@@ -132,7 +168,25 @@ onUnmounted(() => {
     clearInterval(systemThemeTimer);
     systemThemeTimer = null;
   }
+  stopScheduler();
 });
+
+// 监听 settings 变化，启停调度器
+watch(
+  () => [
+    settings.value.cloudSync.enabled,
+    settings.value.cloudSync.webdavUrl,
+    JSON.stringify(settings.value.autoBackup),
+    JSON.stringify(settings.value.autoRestore),
+  ],
+  () => {
+    if (settings.value.cloudSync.enabled) {
+      startScheduler(() => settings.value);
+    } else {
+      stopScheduler();
+    }
+  }
+);
 
 watch(() => settings.value.theme, (newTheme) => {
   applyTheme(newTheme);

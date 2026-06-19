@@ -1,5 +1,11 @@
-import type { AppSettings } from "../types"
+import type { AppSettings, ScheduleConfig } from "../types"
 import { getDb } from "./db"
+
+const defaultAutoSchedule: ScheduleConfig = {
+  enabled: false,
+  interval: 30,
+  unit: "minute",
+}
 
 const defaultSettings: AppSettings = {
   completionMode: "checkbox",
@@ -24,6 +30,8 @@ const defaultSettings: AppSettings = {
     webdavPassword: "",
     localSyncPath: "",
   },
+  autoBackup: { ...defaultAutoSchedule },
+  autoRestore: { ...defaultAutoSchedule },
 }
 
 export async function init(): Promise<void> {
@@ -43,6 +51,9 @@ export async function getSettings(): Promise<AppSettings> {
     kv[row.key] = row.value
   }
 
+  const parseSchedule = (raw: string | undefined): ScheduleConfig =>
+    raw ? JSON.parse(raw) : { ...defaultAutoSchedule }
+
   return {
     completionMode: (kv["completionMode"] as "checkbox" | "longpress") || "checkbox",
     longPressDuration: kv["longPressDuration"] ? Number(kv["longPressDuration"]) : 3,
@@ -61,6 +72,8 @@ export async function getSettings(): Promise<AppSettings> {
     cloudSync: kv["cloudSync"]
       ? JSON.parse(kv["cloudSync"])
       : { ...defaultSettings.cloudSync },
+    autoBackup: parseSchedule(kv["autoBackup"]),
+    autoRestore: parseSchedule(kv["autoRestore"]),
   }
 }
 
@@ -104,5 +117,13 @@ export async function saveSettings(settings: AppSettings): Promise<void> {
   await (db as { execute: (sql: string, params: unknown[]) => Promise<void> }).execute("INSERT INTO settings (key, value) VALUES ($1, $2)", [
     "cloudSync",
     JSON.stringify(settings.cloudSync),
+  ])
+  await (db as { execute: (sql: string, params: unknown[]) => Promise<void> }).execute("INSERT INTO settings (key, value) VALUES ($1, $2)", [
+    "autoBackup",
+    JSON.stringify(settings.autoBackup),
+  ])
+  await (db as { execute: (sql: string, params: unknown[]) => Promise<void> }).execute("INSERT INTO settings (key, value) VALUES ($1, $2)", [
+    "autoRestore",
+    JSON.stringify(settings.autoRestore),
   ])
 }

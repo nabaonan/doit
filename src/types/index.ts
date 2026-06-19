@@ -82,6 +82,14 @@ export interface Category {
 
 export type FontFamilyOption = "default" | "cartoon"
 
+export type BackupUnit = "minute" | "hour" | "day"
+
+export interface ScheduleConfig {
+  enabled: boolean
+  interval: number
+  unit: BackupUnit
+}
+
 export interface AppSettings {
   completionMode: "checkbox" | "longpress"
   longPressDuration: number
@@ -99,4 +107,6 @@ export interface AppSettings {
     webdavPassword: string
     localSyncPath: string
   }
+  autoBackup: ScheduleConfig
+  autoRestore: ScheduleConfig
 }
