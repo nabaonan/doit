@@ -289,15 +289,33 @@ async fn download_db_from_webdav(
 
     let bytes = resp.bytes().await.map_err(|e| format!("读取响应体失败: {}", e))?;
 
-    // 备份当前数据库文件
+    // 备份当前数据库文件（保留一份以便用户回滚）
     if db.exists() {
         let backup_name = format!("{}.bak", db.display());
         let _ = std::fs::copy(&db, &backup_name);
     }
 
-    std::fs::write(&db, &bytes).map_err(|e| format!("写入数据库文件失败: {}", e))?;
+    // 用临时文件方式替换 db，避免 Windows 上文件锁导致覆盖失败
+    // 1. 下载到临时文件
+    let temp_path = db.with_extension("db.download.tmp");
 
-    Ok("下载成功，数据库已恢复".to_string())
+    // 2. 写入临时文件
+    std::fs::write(&temp_path, &bytes)
+        .map_err(|e| format!("写入临时文件失败: {}", e))?;
+
+    // 3. 删除原 db + wal + shm（必须先 close pool 否则 Windows 锁住）
+    let _ = std::fs::remove_file(&db);
+    let _ = std::fs::remove_file(db.with_extension("db-wal"));
+    let _ = std::fs::remove_file(db.with_extension("db-shm"));
+
+    // 4. 重命名临时文件为 db
+    std::fs::rename(&temp_path, &db)
+        .map_err(|e| format!("重命名失败: {}", e))?;
+
+    Ok(format!(
+        "下载成功，数据库已恢复 ({} bytes)",
+        bytes.len()
+    ))
 }
 
 #[tauri::command]

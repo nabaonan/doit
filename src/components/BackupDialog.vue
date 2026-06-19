@@ -102,11 +102,19 @@ async function handleDownload() {
 
   uploading.value = true;
   try {
-    await downloadDbBackup(webdavUrl, webdavUsername, webdavPassword);
-    // 下载完成后重新初始化数据库
+    // 1. 先关闭 db 连接（让 tauri-plugin-sql 释放文件锁，Windows 必须）
     await closeDb();
+    // 2. 等待 300ms 让 Windows 释放文件句柄
+    await new Promise((r) => setTimeout(r, 300));
+    // 3. 下载远程 db 并替换本地（Rust 端用临时文件 + 重命名方式替换）
+    const result = await downloadDbBackup(
+      webdavUrl,
+      webdavUsername,
+      webdavPassword
+    );
+    // 4. 重新初始化数据库
     await getDb();
-    message.success("数据库恢复成功");
+    message.success(result || "数据库恢复成功");
     emit("data-changed");
     emit("update:open", false);
   } catch (e: any) {

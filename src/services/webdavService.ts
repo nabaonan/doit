@@ -123,9 +123,13 @@ export async function downloadDbBackup(
   url: string,
   username: string,
   password: string
-): Promise<void> {
+): Promise<string> {
   const { invoke } = await import("@tauri-apps/api/core")
-  await invoke("download_db_from_webdav", { url, username, password })
+  return await invoke<string>("download_db_from_webdav", {
+    url,
+    username,
+    password,
+  })
 }
 
 // ========== 旧 JSON 同步（保留兼容） ==========
