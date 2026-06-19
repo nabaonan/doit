@@ -1,5 +1,27 @@
 # Changelog
 
+## v0.1.42 (2026-06-19)
+
+### 新功能
+
+- 增加嗲办事项倒计时显示 (`472f193` by @nabaonan)
+- 新增待办事项定时提醒功能 (`5df345a` by @nabaonan)
+
+### 样式调整
+
+- 优化倒计时样式 (`22d0cc9` by @nabaonan)
+
+### 文档更新
+
+- 更新 Changelog for v0.1.41 (`9c3be03` by @github-actions[bot])
+
+### 构建/工具
+
+- release v0.1.42 (`f1f5c07` by @nabaonan)
+
+---
+
+
 ## v0.1.41 (2026-06-19)
 
 ### 新功能
