@@ -78,14 +78,13 @@ const countdownText = computed(() => {
   if (diff <= 0) return ""
   const hours = Math.floor(diff / 3600)
   const minutes = Math.floor((diff % 3600) / 60)
-  const seconds = diff % 60
   if (hours > 0) {
     return `还剩 ${hours}小时${minutes}分钟`
   }
   if (minutes > 0) {
-    return `还剩 ${minutes}分钟${seconds}秒`
+    return `还剩 ${minutes}分钟`
   }
-  return `还剩 ${seconds}秒`
+  return `还剩 ${diff}秒`
 })
 
 function stopCountdown() {
