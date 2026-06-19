@@ -14,11 +14,13 @@ import SettingsDialog from "./components/SettingsDialog.vue";
 import ReportDialog from "./components/ReportDialog.vue";
 import CategoryDialog from "./components/CategoryDialog.vue";
 import BackupDialog from "./components/BackupDialog.vue";
+import ReminderDialog from "./components/ReminderDialog.vue";
 import type { TodoItem, AppSettings, Category } from "./types";
 import { init as initTodos, getAllTodos, addTodo, updateTodo, deleteTodo, reorderTodos, sortTodos, clearAllTodos } from "./services/todoService";
 import { init as initSettings, getSettings, saveSettings } from "./services/settingsService";
 import { exportDatabase, importDatabase } from "./services/dbService";
 import { startScheduler, stopScheduler, setCallbacks as setSchedulerCallbacks } from "./services/autoSyncService";
+import { loadReminders, scheduleReminder, cancelReminder as cancelReminderService, setNotificationCallback } from "./services/reminderService";
 import { message } from "antdv-next";
 
 const todos = ref<TodoItem[]>([]);
@@ -63,6 +65,13 @@ const showBackup = ref(false);
 const currentView = ref<"today" | "time">("today");
 const selectedCatId = ref<string>("__none__");
 const showCategoryDialog = ref(false);
+const reminderTodoId = ref<string | null>(null);
+const showReminder = ref(false);
+
+const reminderTodo = computed(() => {
+  if (!reminderTodoId.value) return null;
+  return todos.value.find((t) => t.id === reminderTodoId.value) ?? null;
+});
 
 const todayStr = computed(() => dayjs().format("YYYY-MM-DD"));
 
@@ -158,9 +167,34 @@ onMounted(async () => {
       }
     },
   });
+  setNotificationCallback(async (_todoId: string, content: string) => {
+    const isTauri = !!(window as unknown as { __TAURI__?: unknown }).__TAURI__;
+    if (isTauri) {
+      const { sendNotification, isPermissionGranted, requestPermission } = await import("@tauri-apps/plugin-notification");
+      let granted = await isPermissionGranted();
+      if (!granted) {
+        const permission = await requestPermission();
+        granted = permission === "granted";
+      }
+      if (granted) {
+        sendNotification({ title: "待办提醒", body: content, icon: "icons/icon.png" });
+      }
+    } else if ("Notification" in window) {
+      const icon = "/icon.png";
+      if (Notification.permission === "granted") {
+        new Notification("待办提醒", { body: content, icon });
+      } else if (Notification.permission !== "denied") {
+        const permission = await Notification.requestPermission();
+        if (permission === "granted") {
+          new Notification("待办提醒", { body: content, icon });
+        }
+      }
+    }
+  });
   if (settings.value.cloudSync.enabled) {
     startScheduler(() => settings.value);
   }
+  loadReminders(todos.value);
 });
 
 onUnmounted(() => {
@@ -230,6 +264,7 @@ async function handleAddTodo(content: string) {
     tagId: null,
     catId: selectedCatId.value === "__none__" ? null : selectedCatId.value,
     parentId: null,
+    remindAt: null,
   };
   const ok = await addTodo(newTodo);
   if (ok) {
@@ -300,6 +335,9 @@ async function handleToggleComplete(id: string) {
   }
   togglingIds.add(id);
   const newCompleted = !todo.completed;
+  if (newCompleted && todo.remindAt) {
+    cancelReminderService(id);
+  }
   todo.completed = newCompleted;
   todo.completedAt = newCompleted ? new Date().toISOString() : null;
   try {
@@ -381,6 +419,7 @@ async function handleAddSubTodo(parentId: string, content: string) {
     tagId: null,
     catId: parent?.catId ?? null,
     parentId,
+    remindAt: null,
   };
   const ok = await addTodo(newTodo);
   if (ok) {
@@ -391,6 +430,7 @@ async function handleAddSubTodo(parentId: string, content: string) {
 }
 
 async function handleDeleteTodo(id: string) {
+  cancelReminderService(id);
   const ok = await deleteTodo(id);
   if (ok) {
     todos.value = await getAllTodos();
@@ -448,6 +488,40 @@ async function handleDataChanged() {
   settings.value = await getSettings();
   showBackup.value = false;
 }
+
+function handleSetReminder(id: string) {
+  reminderTodoId.value = id;
+  showReminder.value = true;
+}
+
+async function handleSetReminderConfirm(remindAt: string) {
+  const id = reminderTodoId.value;
+  if (!id) return;
+  cancelReminderService(id);
+  const ok = await updateTodo(id, { remindAt });
+  if (ok) {
+    todos.value = await getAllTodos();
+  } else {
+    const todo = todos.value.find((t) => t.id === id);
+    if (todo) todo.remindAt = remindAt;
+  }
+  scheduleReminder(id, remindAt, todos.value.find((t) => t.id === id)?.content ?? "");
+  reminderTodoId.value = null;
+  showReminder.value = false;
+}
+
+async function handleCancelReminder(id: string) {
+  cancelReminderService(id);
+  const ok = await updateTodo(id, { remindAt: null } as any);
+  if (ok) {
+    todos.value = await getAllTodos();
+  } else {
+    const todo = todos.value.find((t) => t.id === id);
+    if (todo) todo.remindAt = null;
+  }
+  reminderTodoId.value = null;
+  showReminder.value = false;
+}
 </script>
 
 <template>
@@ -477,6 +551,8 @@ async function handleDataChanged() {
             @set-tag="handleSetTag"
             @set-cat="handleSetCat"
             @add-sub-todo="handleAddSubTodo"
+            @set-reminder="handleSetReminder"
+            @cancel-reminder="handleCancelReminder"
           />
           <TimeView
             v-if="currentView === 'time'"
@@ -505,6 +581,16 @@ async function handleDataChanged() {
             v-model:open="showBackup"
             :settings="settings"
             @data-changed="handleDataChanged"
+          />
+          <ReminderDialog
+            v-if="reminderTodo"
+            v-model:open="showReminder"
+            :todo-id="reminderTodo.id"
+            :todo-content="reminderTodo.content"
+            :current-remind-at="reminderTodo.remindAt"
+            @confirm="handleSetReminderConfirm"
+            @cancel-reminder="() => handleCancelReminder(reminderTodo!.id)"
+            @update:open="(val) => { if (!val) { showReminder = false; reminderTodoId = null } }"
           />
         </div>
       </a-app>

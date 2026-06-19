@@ -36,6 +36,9 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
+    "resources": [
+      "icons/icon.png"
+    ],
     "windows": {
       "nsis": {
         "installerIcon": "icons/icon.ico",

@@ -8,6 +8,7 @@ export interface TodoItem {
   tagId: string | null
   catId: string | null
   parentId: string | null
+  remindAt: string | null
 }
 
 export interface TodoItemNode {
@@ -20,6 +21,7 @@ export interface TodoItemNode {
   tagId: string | null
   catId: string | null
   parentId: string | null
+  remindAt: string | null
   children: TodoItemNode[]
 }
 

@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref, computed, watch, h, nextTick } from "vue";
-import { EditOutlined, DeleteOutlined, TagOutlined, PlusOutlined, FolderOutlined, CheckCircleFilled } from "@antdv-next/icons";
+import { ref, computed, watch, h, nextTick, onUnmounted } from "vue";
+import { EditOutlined, DeleteOutlined, TagOutlined, PlusOutlined, FolderOutlined, ClockCircleOutlined, CheckCircleFilled } from "@antdv-next/icons";
 import type { MenuItemType } from "antdv-next";
 import dayjs from "dayjs";
 import type { TodoItem as TodoItemType, AppSettings } from "../types";
@@ -25,6 +25,8 @@ const emit = defineEmits<{
   (e: "set-tag", tagId: string | null): void;
   (e: "set-cat", catId: string | null): void;
   (e: "add-sub-todo", content: string): void;
+  (e: "set-reminder"): void;
+  (e: "cancel-reminder"): void;
 }>();
 
 const editInput = ref<HTMLInputElement | null>(null);
@@ -65,6 +67,53 @@ const durationText = computed(() => {
   const days = end.diff(start, "day");
   return `${days} 天`;
 });
+
+const countdownTick = ref(0)
+let countdownTimer: ReturnType<typeof setInterval> | null = null
+
+const countdownText = computed(() => {
+  countdownTick.value
+  if (!props.todo.remindAt || props.todo.completed) return ""
+  const diff = dayjs(props.todo.remindAt).diff(dayjs(), "second")
+  if (diff <= 0) return ""
+  const hours = Math.floor(diff / 3600)
+  const minutes = Math.floor((diff % 3600) / 60)
+  if (hours > 0) {
+    return `还剩 ${hours}小时${minutes}分钟`
+  }
+  return `还剩 ${minutes}分钟`
+})
+
+function stopCountdown() {
+  if (countdownTimer) {
+    clearInterval(countdownTimer)
+    countdownTimer = null
+  }
+}
+
+watch(() => props.todo.remindAt, (val) => {
+  stopCountdown()
+  if (val && !props.todo.completed) {
+    countdownTick.value++
+    countdownTimer = setInterval(() => {
+      countdownTick.value++
+    }, 60_000)
+  }
+}, { immediate: true })
+
+watch(() => props.todo.completed, (val) => {
+  if (val) {
+    stopCountdown()
+  } else if (props.todo.remindAt) {
+    stopCountdown()
+    countdownTick.value++
+    countdownTimer = setInterval(() => {
+      countdownTick.value++
+    }, 60_000)
+  }
+})
+
+onUnmounted(stopCountdown)
 
 const tagMenuChildren = computed(() => {
   const tags = props.settings.tags || [];
@@ -156,6 +205,11 @@ const menuItems = computed<MenuItemType[]>(() => {
     icon: h(PlusOutlined),
     disabled: props.todo.completed,
   });
+  items.push({
+    key: "reminder",
+    label: "定时提醒",
+    icon: h(ClockCircleOutlined),
+  });
   items.push({ type: "divider" });
   items.push({
     key: "delete",
@@ -183,6 +237,8 @@ function onMenuClick({ key }: { key: string }) {
     emit("set-cat", null);
   } else if (key.startsWith("cat-")) {
     emit("set-cat", key.replace("cat-", ""));
+  } else if (key === "reminder") {
+    emit("set-reminder");
   }
 }
 
@@ -352,6 +408,14 @@ function stopLongPress() {
           >
             {{ currentTag.name }}
           </a-tag>
+
+          <span
+            v-if="countdownText"
+            class="shrink-0 flex items-center gap-1 text-xs text-orange-500"
+          >
+            <ClockCircleOutlined :style="{ fontSize: '12px' }" />
+            {{ countdownText }}
+          </span>
 
           <span
             v-if="todo.completed && durationText"

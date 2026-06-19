@@ -20,6 +20,8 @@ const props = defineProps<{
   setTag: (id: string, tagId: string | null) => void;
   setCat: (id: string, catId: string | null) => void;
   addSubTodo: (parentId: string, content: string) => void;
+  setReminder: (id: string) => void;
+  cancelReminder: (id: string) => void;
 }>();
 
 const currentDepth = props.depth ?? 0;
@@ -63,6 +65,8 @@ const list = computed({
         @set-tag="(tagId: string | null) => setTag(element.id, tagId)"
         @set-cat="(catId: string | null) => setCat(element.id, catId)"
         @add-sub-todo="(content: string) => addSubTodo(element.id, content)"
+        @set-reminder="setReminder(element.id)"
+        @cancel-reminder="cancelReminder(element.id)"
       />
       <NestedTodoList
         v-if="element.children.length > 0"
@@ -79,6 +83,8 @@ const list = computed({
         :set-tag="setTag"
         :set-cat="setCat"
         :add-sub-todo="addSubTodo"
+        :set-reminder="setReminder"
+        :cancel-reminder="cancelReminder"
       />
     </div>
   </VueDraggable>

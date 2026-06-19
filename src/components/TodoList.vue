@@ -18,6 +18,8 @@ const emit = defineEmits<{
   (e: "set-tag", id: string, tagId: string | null): void;
   (e: "set-cat", id: string, catId: string | null): void;
   (e: "add-sub-todo", parentId: string, content: string): void;
+  (e: "set-reminder", id: string): void;
+  (e: "cancel-reminder", id: string): void;
 }>();
 
 const newTodoInput = ref("");
@@ -253,6 +255,8 @@ function onDeleteTodo(id: string) {
         :set-tag="onSetTag"
         :set-cat="onSetCat"
         :add-sub-todo="onAddSubTodo"
+        :set-reminder="(id: string) => emit('set-reminder', id)"
+        :cancel-reminder="(id: string) => emit('cancel-reminder', id)"
       />
     </div>
 
