@@ -42,6 +42,7 @@ const settings = ref<AppSettings>({
   },
   tags: [],
   categories: [],
+  defaultCategoryId: null,
   cloudSync: {
     enabled: false,
     provider: "webdav",
@@ -149,6 +150,16 @@ onMounted(async () => {
   applyTheme(settings.value.theme);
   startSystemThemeTimer();
 
+  // 应用默认分类（若设置了且分类仍存在）
+  if (settings.value.defaultCategoryId) {
+    const exists = (settings.value.categories || []).some(
+      (c) => c.id === settings.value.defaultCategoryId
+    );
+    if (exists) {
+      selectedCatId.value = settings.value.defaultCategoryId;
+    }
+  }
+
   // 启动自动备份/恢复调度器
   setSchedulerCallbacks({
     onBackupStatus: (s) => {
@@ -239,11 +250,15 @@ function handleSelectCat(catId: string | null) {
   selectedCatId.value = catId ?? "__none__";
 }
 
-async function handleSaveCategories(categories: Category[]) {
+async function handleSaveCategories(payload: {
+  categories: Category[];
+  defaultCategoryId: string | null;
+}) {
   const oldIds = new Set(settings.value.categories.map((c) => c.id));
-  const newIds = new Set(categories.map((c) => c.id));
+  const newIds = new Set(payload.categories.map((c) => c.id));
   const removedIds = [...oldIds].filter((id) => !newIds.has(id));
-  settings.value.categories = categories;
+  settings.value.categories = payload.categories;
+  settings.value.defaultCategoryId = payload.defaultCategoryId;
   try {
     await saveSettings(settings.value);
   } catch {
@@ -258,6 +273,20 @@ async function handleSaveCategories(categories: Category[]) {
       }
     }
     todos.value = await getAllTodos();
+    // 若当前选中的就是被删除的分类，且没有新的默认承接，降级为「未分类」
+    if (
+      selectedCatId.value !== "__none__" &&
+      removedIds.includes(selectedCatId.value) &&
+      payload.defaultCategoryId !== selectedCatId.value
+    ) {
+      selectedCatId.value = "__none__";
+    }
+  } else if (
+    payload.defaultCategoryId &&
+    payload.defaultCategoryId !== selectedCatId.value
+  ) {
+    // 没删除任何分类但用户改了默认，立即应用（更直观的反馈）
+    selectedCatId.value = payload.defaultCategoryId;
   }
   showCategoryDialog.value = false;
 }
@@ -606,6 +635,7 @@ async function handleCancelReminder(id: string) {
           <CategoryDialog
             v-model:open="showCategoryDialog"
             :categories="settings.categories"
+            :default-category-id="settings.defaultCategoryId"
             :todos="todos"
             @save="handleSaveCategories"
           />

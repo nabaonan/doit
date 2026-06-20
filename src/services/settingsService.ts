@@ -22,6 +22,7 @@ const defaultSettings: AppSettings = {
   },
   tags: [],
   categories: [],
+  defaultCategoryId: null,
   cloudSync: {
     enabled: false,
     provider: "webdav",
@@ -68,6 +69,9 @@ export async function getSettings(): Promise<AppSettings> {
     categories: kv["categories"]
       ? JSON.parse(kv["categories"])
       : [...defaultSettings.categories],
+    defaultCategoryId: kv["defaultCategoryId"]
+      ? JSON.parse(kv["defaultCategoryId"])
+      : null,
     cloudSync: kv["cloudSync"]
       ? JSON.parse(kv["cloudSync"])
       : { ...defaultSettings.cloudSync },
@@ -112,6 +116,10 @@ export async function saveSettings(settings: AppSettings): Promise<void> {
   await (db as { execute: (sql: string, params: unknown[]) => Promise<void> }).execute("INSERT INTO settings (key, value) VALUES ($1, $2)", [
     "categories",
     JSON.stringify(settings.categories),
+  ])
+  await (db as { execute: (sql: string, params: unknown[]) => Promise<void> }).execute("INSERT INTO settings (key, value) VALUES ($1, $2)", [
+    "defaultCategoryId",
+    JSON.stringify(settings.defaultCategoryId ?? null),
   ])
   await (db as { execute: (sql: string, params: unknown[]) => Promise<void> }).execute("INSERT INTO settings (key, value) VALUES ($1, $2)", [
     "cloudSync",

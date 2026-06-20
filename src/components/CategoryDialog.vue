@@ -9,23 +9,29 @@ import ColorLabelAdder from "./ColorLabelAdder.vue";
 const props = defineProps<{
   open: boolean;
   categories: Category[];
+  defaultCategoryId?: string | null;
   todos: TodoItem[];
 }>();
 
 const emit = defineEmits<{
   (e: "update:open", open: boolean): void;
-  (e: "save", categories: Category[]): void;
+  (e: "save", payload: {
+    categories: Category[];
+    defaultCategoryId: string | null;
+  }): void;
 }>();
 
 const localCategories = ref<Category[]>([]);
 const newCatColor = ref("#3B82F6");
 const editingId = ref<string | null>(null);
+const localDefaultId = ref<string | null>(props.defaultCategoryId ?? null);
 
 const colorPresets = computed(() => buildColorPresets());
 
 watch(() => props.open, (val) => {
   if (val) {
     localCategories.value = JSON.parse(JSON.stringify(props.categories || []));
+    localDefaultId.value = props.defaultCategoryId ?? null;
     newCatColor.value = "#3B82F6";
     editingId.value = null;
   }
@@ -43,6 +49,7 @@ function removeCategory(id: string) {
   const remove = () => {
     localCategories.value = localCategories.value.filter((c) => c.id !== id);
     if (editingId.value === id) editingId.value = null;
+    clearDefaultIfDeleted();
   };
   const count = (props.todos || []).filter((t) => t.catId === id).length;
   if (count > 0) {
@@ -57,6 +64,16 @@ function removeCategory(id: string) {
     });
   } else {
     remove();
+  }
+}
+
+function toggleDefault(id: string) {
+  localDefaultId.value = localDefaultId.value === id ? null : id;
+}
+
+function clearDefaultIfDeleted() {
+  if (localDefaultId.value && !localCategories.value.some((c) => c.id === localDefaultId.value)) {
+    localDefaultId.value = null;
   }
 }
 
@@ -75,7 +92,10 @@ function onEditChange(id: string, val: boolean) {
 }
 
 function onSave() {
-  emit("save", JSON.parse(JSON.stringify(localCategories.value)));
+  emit("save", {
+    categories: JSON.parse(JSON.stringify(localCategories.value)),
+    defaultCategoryId: localDefaultId.value,
+  });
   emit("update:open", false);
 }
 
@@ -111,7 +131,27 @@ function onCancel() {
         @update:name="updateName"
         @update:color="updateColor"
         @delete="removeCategory"
-      />
+      >
+        <template #actions>
+          <!-- 「默认」徽标：当前默认常驻显示，点击可取消 -->
+          <span
+            v-if="localDefaultId === cat.id"
+            class="text-[10px] font-medium text-[var(--primary)] bg-[var(--primary)]/10 px-1.5 py-0.5 rounded cursor-pointer select-none transition-colors hover:bg-[var(--primary)]/20"
+            role="button"
+            title="点击取消默认"
+            @click="toggleDefault(cat.id)"
+          >默认</span>
+          <!-- 「设为默认」按钮：hover 时显示 -->
+          <a-button
+            v-else
+            type="text"
+            size="small"
+            class="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 transition-opacity"
+            title="设为默认"
+            @click="toggleDefault(cat.id)"
+          >设为默认</a-button>
+        </template>
+      </ColorLabelRow>
     </div>
     <div
       v-else

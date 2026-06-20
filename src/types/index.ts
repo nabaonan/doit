@@ -101,6 +101,7 @@ export interface AppSettings {
   addTodoShortcut: ShortcutConfig
   tags: Tag[]
   categories: Category[]
+  defaultCategoryId: string | null
   cloudSync: {
     enabled: boolean
     provider: "webdav"
