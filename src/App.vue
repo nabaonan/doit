@@ -13,6 +13,7 @@ import TimeView from "./components/TimeView.vue";
 import SettingsDialog from "./components/SettingsDialog.vue";
 import ReportDialog from "./components/ReportDialog.vue";
 import CategoryDialog from "./components/CategoryDialog.vue";
+import TagDialog from "./components/TagDialog.vue";
 import BackupDialog from "./components/BackupDialog.vue";
 import ReminderDialog from "./components/ReminderDialog.vue";
 import type { TodoItem, AppSettings, Category } from "./types";
@@ -22,6 +23,7 @@ import { exportDatabase, importDatabase } from "./services/dbService";
 import { startScheduler, stopScheduler, setCallbacks as setSchedulerCallbacks } from "./services/autoSyncService";
 import { loadReminders, scheduleReminder, cancelReminder as cancelReminderService, setNotificationCallback } from "./services/reminderService";
 import { message } from "antdv-next";
+import type { Tag } from "./types";
 
 const todos = ref<TodoItem[]>([]);
 const togglingIds = new Set<string>();
@@ -64,6 +66,7 @@ const showBackup = ref(false);
 const currentView = ref<"today" | "time">("today");
 const selectedCatId = ref<string>("__none__");
 const showCategoryDialog = ref(false);
+const showTagDialog = ref(false);
 const reminderTodoId = ref<string | null>(null);
 const showReminder = ref(false);
 
@@ -257,6 +260,29 @@ async function handleSaveCategories(categories: Category[]) {
     todos.value = await getAllTodos();
   }
   showCategoryDialog.value = false;
+}
+
+async function handleSaveTags(tags: Tag[]) {
+  const oldIds = new Set((settings.value.tags || []).map((t) => t.id));
+  const newIds = new Set(tags.map((t) => t.id));
+  const removedIds = [...oldIds].filter((id) => !newIds.has(id));
+  settings.value.tags = tags;
+  try {
+    await saveSettings(settings.value);
+  } catch {
+    try {
+      settings.value = await getSettings();
+    } catch {}
+  }
+  if (removedIds.length > 0) {
+    for (const todo of todos.value) {
+      if (todo.tagId && removedIds.includes(todo.tagId)) {
+        await updateTodo(todo.id, { tagId: null });
+      }
+    }
+    todos.value = await getAllTodos();
+  }
+  showTagDialog.value = false;
 }
 
 async function handleAddTodo(content: string) {
@@ -544,6 +570,7 @@ async function handleCancelReminder(id: string) {
             @update:view="(v) => currentView = v as 'today' | 'time'"
             @select-cat="handleSelectCat"
             @manage-categories="showCategoryDialog = true"
+            @manage-tags="showTagDialog = true"
           />
           <TodoList
             v-if="currentView === 'today'"
@@ -581,6 +608,11 @@ async function handleCancelReminder(id: string) {
             :categories="settings.categories"
             :todos="todos"
             @save="handleSaveCategories"
+          />
+          <TagDialog
+            v-model:open="showTagDialog"
+            :tags="settings.tags || []"
+            @save="handleSaveTags"
           />
           <!-- 同步状态栏 -->
           <BackupDialog

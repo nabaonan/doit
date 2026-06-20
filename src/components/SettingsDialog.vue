@@ -2,7 +2,7 @@
 import { ref, computed, onMounted, onUnmounted, watch, h, nextTick } from "vue";
 import { Modal } from "antdv-next";
 import { KeyOutlined, SunOutlined, MoonOutlined, MonitorOutlined, DownloadOutlined, UploadOutlined, DeleteOutlined, LockOutlined, ExclamationCircleOutlined, BgColorsOutlined, InteractionOutlined, CloudSyncOutlined, DatabaseOutlined } from "@antdv-next/icons";
-import type { AppSettings, Tag } from "../types";
+import type { AppSettings } from "../types";
 
 const props = defineProps<{
   open: boolean;
@@ -19,15 +19,6 @@ const emit = defineEmits<{
 
 const localSettings = ref<AppSettings>(JSON.parse(JSON.stringify(props.settings)));
 const recordingShortcut = ref(false);
-const newTagName = ref("");
-const newTagColor = ref("#3B82F6");
-
-const presetColors = [
-  "#EF4444", "#F97316", "#F59E0B", "#EAB308", "#84CC16",
-  "#22C55E", "#10B981", "#14B8A6", "#06B6D4", "#3B82F6",
-  "#6366F1", "#8B5CF6", "#A855F7", "#D946EF", "#EC4899",
-  "#6B7280",
-];
 
 const backupUnitOptions = [
   { value: "minute", label: "分钟" },
@@ -36,18 +27,6 @@ const backupUnitOptions = [
 ];
 
 const cloudSyncEnabled = computed(() => localSettings.value.cloudSync.enabled);
-
-const colorPickerPresets = computed(() => [
-  {
-    label: "预设颜色",
-    colors: presetColors,
-    defaultOpen: true,
-  },
-]);
-
-function renderPresetsOnly({ extra }: { extra: { components: { Presets: any } } }) {
-  return h(extra.components.Presets);
-}
 
 type CategoryKey = "appearance" | "interaction" | "sync" | "data";
 
@@ -110,8 +89,6 @@ watch(() => props.open, (val) => {
     // 打开时同步 props.settings 到 localSettings，期间抑制 deep watch 触发的保存
     suppressSave = true;
     localSettings.value = JSON.parse(JSON.stringify(props.settings));
-    newTagName.value = "";
-    newTagColor.value = "#3B82F6";
     // 在 nextTick 后解除抑制，确保初次同步完成
     nextTick(() => {
       suppressSave = false;
@@ -142,24 +119,6 @@ onUnmounted(() => {
     saveTimer = null;
   }
 });
-
-function addTag() {
-  const name = newTagName.value.trim();
-  if (!name) return;
-  if (!localSettings.value.tags) localSettings.value.tags = [];
-  const tag: Tag = {
-    id: crypto.randomUUID(),
-    name,
-    color: newTagColor.value,
-  };
-  localSettings.value.tags.push(tag);
-  newTagName.value = "";
-}
-
-function removeTag(id: string) {
-  if (!localSettings.value.tags) return;
-  localSettings.value.tags = localSettings.value.tags.filter((t) => t.id !== id);
-}
 
 const shortcutDisplay = computed(() => {
   const sc = localSettings.value.addTodoShortcut;
@@ -346,50 +305,6 @@ function confirmClearData() {
               </span>
               <a-tag>{{ shortcutDisplay }}</a-tag>
             </a-button>
-          </div>
-
-          <!-- 标签管理 -->
-          <div>
-            <h4 class="text-xs font-medium text-[var(--muted-foreground)] mb-2">自定义标签</h4>
-            <div class="flex gap-2 mb-2">
-              <a-color-picker
-                v-model:value="newTagColor"
-                :presets="colorPickerPresets"
-                value-format="hex"
-                size="small"
-                :panelRender="renderPresetsOnly"
-              >
-                <div
-                  class="w-7 h-7 rounded-md border border-[var(--border)] cursor-pointer shrink-0 transition-shadow hover:shadow-md"
-                  :style="{ backgroundColor: newTagColor }"
-                />
-              </a-color-picker>
-              <a-input
-                v-model:value="newTagName"
-                placeholder="输入标签名称，回车添加"
-                size="small"
-                @pressEnter="addTag"
-                class="flex-1"
-              />
-            </div>
-            <div v-if="localSettings.tags && localSettings.tags.length > 0" class="flex flex-wrap gap-1.5">
-              <a-tag
-                v-for="tag in localSettings.tags"
-                :key="tag.id"
-                :color="tag.color"
-                variant="solid"
-                closable
-                @close="removeTag(tag.id)"
-              >
-                {{ tag.name }}
-              </a-tag>
-            </div>
-            <div
-              v-else
-              class="text-xs text-[var(--muted-foreground)] py-1"
-            >
-              暂无标签
-            </div>
           </div>
         </section>
 
