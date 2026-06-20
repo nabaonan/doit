@@ -46,7 +46,7 @@ const list = computed({
     :bubble-scroll="true"
     :scroll-sensitivity="100"
     :scroll-speed="20"
-    :delay="0"
+    :delay="50"
   >
     <div v-for="element in list" :key="element.id" :data-todo-id="element.id">
       <TodoItem

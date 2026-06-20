@@ -103,11 +103,10 @@ export interface AppSettings {
   categories: Category[]
   cloudSync: {
     enabled: boolean
-    provider: "webdav" | "local_folder"
+    provider: "webdav"
     webdavUrl: string
     webdavUsername: string
     webdavPassword: string
-    localSyncPath: string
   }
   autoBackup: ScheduleConfig
   autoRestore: ScheduleConfig

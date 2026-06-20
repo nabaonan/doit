@@ -42,11 +42,10 @@ const settings = ref<AppSettings>({
   categories: [],
   cloudSync: {
     enabled: false,
-    provider: "local_folder",
+    provider: "webdav",
     webdavUrl: "",
     webdavUsername: "",
     webdavPassword: "",
-    localSyncPath: "",
   },
   autoBackup: {
     enabled: false,
