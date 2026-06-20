@@ -1,6 +1,7 @@
 <script setup lang="ts" generic="T extends { id: string; name: string; color: string }">
 import { ref, watch } from "vue";
 import type { InputRef } from "antdv-next";
+import { DeleteOutlined } from "@antdv-next/icons";
 import ColorPickerPanel from "./ColorPickerPanel.vue";
 
 interface PresetGroup {
@@ -17,10 +18,14 @@ const props = withDefaults(
     editing: boolean;
     triggerSize?: number;
     nameTitle?: string;
+    deletable?: boolean;
+    deleteTitle?: string;
   }>(),
   {
     triggerSize: 20,
     nameTitle: "双击编辑",
+    deletable: true,
+    deleteTitle: "删除",
   },
 );
 
@@ -28,6 +33,7 @@ const emit = defineEmits<{
   (e: "update:editing", val: boolean): void;
   (e: "update:name", id: string, name: string): void;
   (e: "update:color", id: string, color: string): void;
+  (e: "delete", id: string): void;
 }>();
 
 const editingName = ref(props.item.name);
@@ -83,11 +89,15 @@ function onColorChange(val: string | string[]) {
   const color = Array.isArray(val) ? val[0] : val;
   emit("update:color", props.item.id, color);
 }
+
+function onDelete() {
+  emit("delete", props.item.id);
+}
 </script>
 
 <template>
   <div
-    class="flex items-center gap-2 px-3 py-2 rounded-md hover:bg-[var(--accent)] transition-colors"
+    class="group flex items-center gap-2 px-3 py-2 rounded-md hover:bg-[var(--accent)] transition-colors"
   >
     <ColorPickerPanel
       :value="item.color"
@@ -114,6 +124,19 @@ function onColorChange(val: string | string[]) {
         :title="nameTitle"
       >{{ item.name }}</span>
     </div>
+    <a-button
+      v-if="deletable"
+      type="text"
+      size="small"
+      danger
+      :title="deleteTitle"
+      class="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 transition-opacity"
+      @click="onDelete"
+    >
+      <template #icon>
+        <DeleteOutlined />
+      </template>
+    </a-button>
     <slot name="actions" :item="item" />
   </div>
 </template>

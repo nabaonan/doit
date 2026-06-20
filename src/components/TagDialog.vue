@@ -92,13 +92,8 @@ function onCancel() {
         @update:editing="(val) => onEditChange(tag.id, val)"
         @update:name="updateName"
         @update:color="updateColor"
-      >
-        <template #actions>
-          <a-button type="text" size="small" danger @click="removeTag(tag.id)">
-            删除
-          </a-button>
-        </template>
-      </ColorLabelRow>
+        @delete="removeTag"
+      />
     </div>
     <div
       v-else
