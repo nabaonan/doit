@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { ref, watch, computed } from "vue";
-import type { InputRef } from "antdv-next";
 import type { Tag } from "../types";
-import ColorPickerPanel from "./ColorPickerPanel.vue";
+import { buildColorPresets } from "../constants/presetColors";
+import ColorLabelRow from "./ColorLabelRow.vue";
+import ColorLabelAdder from "./ColorLabelAdder.vue";
 
 const props = defineProps<{
   open: boolean;
@@ -15,93 +16,44 @@ const emit = defineEmits<{
 }>();
 
 const localTags = ref<Tag[]>([]);
-const newTagName = ref("");
 const newTagColor = ref("#3B82F6");
-
 const editingId = ref<string | null>(null);
-const editingName = ref("");
-// v-for 中 ref 收集为数组，用普通 ref + 函数 ref 直接捕获当前唯一的 InputRef
-const editInputRef = ref<InputRef | null>(null);
-function setEditInputRef(el: unknown) {
-  editInputRef.value = (el as InputRef | null) ?? null;
-}
 
-const presetColors = [
-  "#EF4444", "#F97316", "#F59E0B", "#EAB308", "#84CC16",
-  "#22C55E", "#10B981", "#14B8A6", "#06B6D4", "#3B82F6",
-  "#6366F1", "#8B5CF6", "#A855F7", "#D946EF", "#EC4899",
-  "#6B7280",
-];
-
-const colorPickerPresets = computed(() => [
-  {
-    label: "预设颜色",
-    colors: presetColors,
-    defaultOpen: true,
-  },
-]);
+const colorPresets = computed(() => buildColorPresets());
 
 watch(() => props.open, (val) => {
   if (val) {
     localTags.value = JSON.parse(JSON.stringify(props.tags || []));
-    newTagName.value = "";
     newTagColor.value = "#3B82F6";
-    cancelEditName();
+    editingId.value = null;
   }
 });
 
-function addTag() {
-  const name = newTagName.value.trim();
-  if (!name) return;
-  const tag: Tag = {
+function onAdd(payload: { name: string; color: string }) {
+  localTags.value.push({
     id: crypto.randomUUID(),
-    name,
-    color: newTagColor.value,
-  };
-  localTags.value.push(tag);
-  newTagName.value = "";
+    name: payload.name,
+    color: payload.color,
+  });
 }
 
 function removeTag(id: string) {
   localTags.value = localTags.value.filter((t) => t.id !== id);
-  if (editingId.value === id) cancelEditName();
+  if (editingId.value === id) editingId.value = null;
 }
 
-function startEditName(tag: Tag) {
-  if (editingId.value === tag.id) return;
-  editingId.value = tag.id;
-  editingName.value = tag.name;
-  // antdv-next Input API: focus({ cursor: 'end' }) 聚焦 + 光标置于末尾
-  queueMicrotask(() => {
-    editInputRef.value?.focus({ cursor: "end" });
-  });
+function updateName(id: string, name: string) {
+  const t = localTags.value.find((it) => it.id === id);
+  if (t) t.name = name;
 }
 
-function commitEditName() {
-  if (!editingId.value) return;
-  const name = editingName.value.trim();
-  if (!name) {
-    cancelEditName();
-    return;
-  }
-  const tag = localTags.value.find((t) => t.id === editingId.value);
-  if (tag) tag.name = name;
-  cancelEditName();
-}
-
-function cancelEditName() {
-  editingId.value = null;
-  editingName.value = "";
-}
-
-function onColorChange(tag: Tag, val: string | string[]) {
-  const color = Array.isArray(val) ? val[0] : val;
-  const t = localTags.value.find((it) => it.id === tag.id);
+function updateColor(id: string, color: string) {
+  const t = localTags.value.find((it) => it.id === id);
   if (t) t.color = color;
 }
 
-function onNewColorChange(val: string | string[]) {
-  newTagColor.value = Array.isArray(val) ? val[0] : val;
+function onEditChange(id: string, val: boolean) {
+  editingId.value = val ? id : null;
 }
 
 function onSave() {
@@ -124,67 +76,29 @@ function onCancel() {
     centered
     destroyOnHidden
   >
-    <div class="mb-4">
-      <div class="flex gap-2 mb-3">
-        <ColorPickerPanel
-          :value="newTagColor"
-          :presets="colorPickerPresets"
-          :triggerSize="32"
-          @update:value="onNewColorChange"
-        />
-        <a-input
-          v-model:value="newTagName"
-          placeholder="输入标签名称，回车添加"
-          size="middle"
-          @pressEnter="addTag"
-          class="flex-1"
-        />
-        <a-button type="primary" @click="addTag" :disabled="!newTagName.trim()">
-          添加
-        </a-button>
-      </div>
-    </div>
+    <ColorLabelAdder
+      :presets="colorPresets"
+      :default-color="newTagColor"
+      @add="onAdd"
+    />
 
     <div v-if="localTags.length > 0" class="flex flex-col gap-1">
-      <div
+      <ColorLabelRow
         v-for="tag in localTags"
         :key="tag.id"
-        class="flex items-center gap-2 px-3 py-2 rounded-md hover:bg-[var(--accent)] transition-colors"
+        :item="tag"
+        :presets="colorPresets"
+        :editing="editingId === tag.id"
+        @update:editing="(val) => onEditChange(tag.id, val)"
+        @update:name="updateName"
+        @update:color="updateColor"
       >
-        <ColorPickerPanel
-          :value="tag.color"
-          :presets="colorPickerPresets"
-          :triggerSize="20"
-          @update:value="(val: string | string[]) => onColorChange(tag, val)"
-        />
-        <div
-          class="flex-1 min-w-0 cursor-text"
-          @dblclick="startEditName(tag)"
-        >
-          <a-input
-            v-if="editingId === tag.id"
-            :ref="setEditInputRef"
-            v-model:value="editingName"
-            size="small"
-            @pressEnter="commitEditName"
-            @blur="commitEditName"
-            @keydown.escape="cancelEditName"
-          />
-          <span
-            v-else
-            class="block text-sm text-[var(--foreground)] truncate select-none"
-            title="双击编辑"
-          >{{ tag.name }}</span>
-        </div>
-        <a-button
-          type="text"
-          size="small"
-          danger
-          @click="removeTag(tag.id)"
-        >
-          删除
-        </a-button>
-      </div>
+        <template #actions>
+          <a-button type="text" size="small" danger @click="removeTag(tag.id)">
+            删除
+          </a-button>
+        </template>
+      </ColorLabelRow>
     </div>
     <div
       v-else

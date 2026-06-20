@@ -35,6 +35,8 @@ declare module 'vue' {
     ATooltip: typeof import('antdv-next')['Tooltip']
     BackupDialog: typeof import('./src/components/BackupDialog.vue')['default']
     CategoryDialog: typeof import('./src/components/CategoryDialog.vue')['default']
+    ColorLabelAdder: typeof import('./src/components/ColorLabelAdder.vue')['default']
+    ColorLabelRow: typeof import('./src/components/ColorLabelRow.vue')['default']
     ColorPickerPanel: typeof import('./src/components/ColorPickerPanel.vue')['default']
     NestedTodoList: typeof import('./src/components/NestedTodoList.vue')['default']
     ReminderDialog: typeof import('./src/components/ReminderDialog.vue')['default']
