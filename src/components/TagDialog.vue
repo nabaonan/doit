@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref, watch, computed, nextTick } from "vue";
+import { ref, watch, computed } from "vue";
+import type { InputRef } from "antdv-next";
 import type { Tag } from "../types";
 import ColorPickerPanel from "./ColorPickerPanel.vue";
 
@@ -19,7 +20,11 @@ const newTagColor = ref("#3B82F6");
 
 const editingId = ref<string | null>(null);
 const editingName = ref("");
-const editInputRef = ref<HTMLInputElement | null>(null);
+// v-for 中 ref 收集为数组，用普通 ref + 函数 ref 直接捕获当前唯一的 InputRef
+const editInputRef = ref<InputRef | null>(null);
+function setEditInputRef(el: unknown) {
+  editInputRef.value = (el as InputRef | null) ?? null;
+}
 
 const presetColors = [
   "#EF4444", "#F97316", "#F59E0B", "#EAB308", "#84CC16",
@@ -63,11 +68,12 @@ function removeTag(id: string) {
 }
 
 function startEditName(tag: Tag) {
+  if (editingId.value === tag.id) return;
   editingId.value = tag.id;
   editingName.value = tag.name;
-  nextTick(() => {
-    editInputRef.value?.focus();
-    editInputRef.value?.select();
+  // antdv-next Input API: focus({ cursor: 'end' }) 聚焦 + 光标置于末尾
+  queueMicrotask(() => {
+    editInputRef.value?.focus({ cursor: "end" });
   });
 }
 
@@ -143,42 +149,41 @@ function onCancel() {
       <div
         v-for="tag in localTags"
         :key="tag.id"
-        class="flex items-center justify-between px-3 py-2 rounded-md hover:bg-[var(--accent)] transition-colors"
+        class="flex items-center gap-2 px-3 py-2 rounded-md hover:bg-[var(--accent)] transition-colors"
       >
-        <div class="flex items-center gap-2 min-w-0 flex-1">
-          <ColorPickerPanel
-            :value="tag.color"
-            :presets="colorPickerPresets"
-            :triggerSize="20"
-            @update:value="(val: string | string[]) => onColorChange(tag, val)"
-          />
+        <ColorPickerPanel
+          :value="tag.color"
+          :presets="colorPickerPresets"
+          :triggerSize="20"
+          @update:value="(val: string | string[]) => onColorChange(tag, val)"
+        />
+        <div
+          class="flex-1 min-w-0 cursor-text"
+          @dblclick="startEditName(tag)"
+        >
           <a-input
             v-if="editingId === tag.id"
-            ref="editInputRef"
+            :ref="setEditInputRef"
             v-model:value="editingName"
             size="small"
-            class="flex-1"
             @pressEnter="commitEditName"
             @blur="commitEditName"
             @keydown.escape="cancelEditName"
           />
           <span
             v-else
-            class="text-sm text-[var(--foreground)] truncate cursor-text select-none"
+            class="block text-sm text-[var(--foreground)] truncate select-none"
             title="双击编辑"
-            @dblclick="startEditName(tag)"
           >{{ tag.name }}</span>
         </div>
-        <div class="flex items-center gap-1 shrink-0">
-          <a-button
-            type="text"
-            size="small"
-            danger
-            @click="removeTag(tag.id)"
-          >
-            删除
-          </a-button>
-        </div>
+        <a-button
+          type="text"
+          size="small"
+          danger
+          @click="removeTag(tag.id)"
+        >
+          删除
+        </a-button>
       </div>
     </div>
     <div
