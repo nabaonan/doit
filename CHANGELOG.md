@@ -1,5 +1,43 @@
 # Changelog
 
+## v0.1.44 (2026-06-21)
+
+### 新功能
+
+- 添加应用内自动更新功能 (`8ba0927` by @nabaonan)
+- 增加自动清理备份数量的设置 (`8d26e0f` by @nabaonan)
+- 增加关闭时候同步的提示 (`c4d5361` by @nabaonan)
+- 报告支持分类选择 (`7434ce3` by @nabaonan)
+- 增加默认分类 (`94aac3f` by @nabaonan)
+
+### Bug 修复
+
+- 消除警告 (`4d60309` by @nabaonan)
+
+### 重构
+
+- 优化默认分类应用逻辑 (`ac5c1ec` by @nabaonan)
+
+### 样式调整
+
+- 统一配置侧边菜单的样式参数 (`17e0f5e` by @nabaonan)
+- 优化WebDAV连接测试区域UI布局 (`efb11ad` by @nabaonan)
+
+### 文档更新
+
+- 更新 Changelog for v0.1.43 (`1b8a2e4` by @github-actions[bot])
+
+### 构建/工具
+
+- release v0.1.44 (`ea8f9c9` by @nabaonan)
+
+### 其他变更
+
+- Merge branch 'main' of github.com:nabaonan/doit (`afb90bd` by @nabaonan)
+
+---
+
+
 ## v0.1.43 (2026-06-21)
 
 ### 新功能
