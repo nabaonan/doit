@@ -53,7 +53,7 @@ fn db_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
         }
     }
 
-    for (label, path_opt) in &candidates {
+    for (_label, path_opt) in &candidates {
         if let Some(ref path) = path_opt {
             if path.exists() {
                 let size = std::fs::metadata(path).map(|m| m.len()).unwrap_or(0);
@@ -395,7 +395,7 @@ fn prepare_clean_db_bytes(db: &PathBuf) -> Result<(Vec<u8>, usize), String> {
 
         // 第二步：用 Backup API 把源 db 复制到临时文件
         // 此时源 db 的主文件已包含全部数据（wal 已合并）
-        let mut src = rusqlite::Connection::open(db)
+        let src = rusqlite::Connection::open(db)
             .map_err(|e| format!("打开源数据库(备份模式)失败: {}", e))?;
         src.execute_batch("PRAGMA journal_mode = WAL;")
             .map_err(|e| format!("设置 WAL 模式失败: {}", e))?;
