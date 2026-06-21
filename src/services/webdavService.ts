@@ -113,10 +113,16 @@ export async function testConnection(
 export async function uploadDbBackup(
   url: string,
   username: string,
-  password: string
+  password: string,
+  keepRecent: number = 3
 ): Promise<string> {
   const { invoke } = await import("@tauri-apps/api/core")
-  return await invoke<string>("upload_db_to_webdav", { url, username, password })
+  return await invoke<string>("upload_db_to_webdav", {
+    url,
+    username,
+    password,
+    keepRecent,
+  })
 }
 
 export async function downloadDbBackup(
@@ -130,6 +136,27 @@ export async function downloadDbBackup(
     username,
     password,
   })
+}
+
+// ========== 列出 / 删除云端备份（由 Rust 处理，更可靠） ==========
+
+export async function listDbBackups(
+  url: string,
+  username: string,
+  password: string
+): Promise<string[]> {
+  const { invoke } = await import("@tauri-apps/api/core")
+  return await invoke<string[]>("list_webdav_backups", { url, username, password })
+}
+
+export async function deleteDbBackup(
+  url: string,
+  filename: string,
+  username: string,
+  password: string
+): Promise<void> {
+  const { invoke } = await import("@tauri-apps/api/core")
+  await invoke<string>("delete_webdav_backup", { url, username, password, filename })
 }
 
 // ========== 旧 JSON 同步（保留兼容） ==========
@@ -186,35 +213,4 @@ export async function downloadBackup(
     throw new Error("备份文件格式不兼容")
   }
   return data
-}
-
-export async function listBackups(
-  url: string,
-  username: string,
-  password: string
-): Promise<string[]> {
-  const baseUrl = url.endsWith("/") ? url : url + "/"
-  const resp = await httpFetch(baseUrl, {
-    method: "PROPFIND",
-    headers: {
-      Authorization: getAuthHeader(username, password),
-      Depth: "1",
-    },
-  })
-  if (!resp.ok) {
-    throw new Error(`获取备份列表失败: ${resp.status} ${resp.statusText}`)
-  }
-  const text = await resp.text()
-  const parser = new DOMParser()
-  const xml = parser.parseFromString(text, "text/xml")
-  const hrefs = xml.querySelectorAll("D\\:href, href")
-  const files: string[] = []
-  for (const el of hrefs) {
-    const href = el.textContent || ""
-    if (href.endsWith(".db") && !href.endsWith("latest.db")) {
-      const name = href.split("/").pop() || href
-      files.push(name)
-    }
-  }
-  return files.sort().reverse()
 }

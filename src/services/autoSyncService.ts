@@ -91,10 +91,12 @@ export async function runBackupOnExit(): Promise<void> {
 
   try {
     onBackupStatus?.("正在关闭时上传本地数据...")
+    // keepRecent 由 Rust 端在 upload_db_to_webdav 内部处理
     await uploadDbBackup(
       s.cloudSync.webdavUrl,
       s.cloudSync.webdavUsername,
-      s.cloudSync.webdavPassword
+      s.cloudSync.webdavPassword,
+      s.cloudSync.keepRecent
     )
     onBackupStatus?.("关闭时上传完成")
   } catch (e) {
@@ -137,15 +139,17 @@ function scheduleNextRestore() {
   }, delay)
 }
 
-async function runBackup() {
+export async function runBackup(): Promise<void> {
   if (!getSettings) return
   const { cloudSync } = getSettings()
   onBackupStatus?.("正在自动备份...")
   try {
+    // keepRecent 由 Rust 端在 upload_db_to_webdav 内部处理
     await uploadDbBackup(
       cloudSync.webdavUrl,
       cloudSync.webdavUsername,
-      cloudSync.webdavPassword
+      cloudSync.webdavPassword,
+      cloudSync.keepRecent
     )
     onBackupStatus?.("自动备份完成")
   } catch {

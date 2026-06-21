@@ -26,3 +26,4 @@ reqwest = { version = "0.12", default-features = false, features = ["json", "rus
 base64 = "0.22"
 bytes = "1"
 rusqlite = { version = "0.31", features = ["bundled", "backup"] }
+regex = "1"

@@ -31,6 +31,7 @@ const defaultSettings: AppSettings = {
     webdavPassword: "",
     fetchOnStartup: true,
     uploadOnExit: true,
+    keepRecent: 3,
   },
   autoBackup: { ...defaultAutoSchedule },
   autoRestore: { ...defaultAutoSchedule },

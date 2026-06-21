@@ -20,7 +20,7 @@ import type { TodoItem, AppSettings, Category } from "./types";
 import { init as initTodos, getAllTodos, addTodo, updateTodo, deleteTodo, reorderTodos, sortTodos, clearAllTodos } from "./services/todoService";
 import { init as initSettings, getSettings, saveSettings } from "./services/settingsService";
 import { exportDatabase, importDatabase } from "./services/dbService";
-import { startScheduler, stopScheduler, setCallbacks as setSchedulerCallbacks, runRestoreOnStartup, runBackupOnExit } from "./services/autoSyncService";
+import { startScheduler, stopScheduler, setCallbacks as setSchedulerCallbacks, runRestoreOnStartup, runBackupOnExit, runBackup } from "./services/autoSyncService";
 import { loadReminders, scheduleReminder, cancelReminder as cancelReminderService, setNotificationCallback } from "./services/reminderService";
 import { message } from "antdv-next";
 import type { Tag } from "./types";
@@ -51,6 +51,7 @@ const settings = ref<AppSettings>({
     webdavPassword: "",
     fetchOnStartup: true,
     uploadOnExit: true,
+    keepRecent: 3,
   },
   autoBackup: {
     enabled: false,
@@ -620,6 +621,19 @@ async function handleSaveSettings(newSettings: AppSettings) {
   // 否则实时保存会立即关闭弹框
 }
 
+function handleBackupNow(newSettings?: AppSettings) {
+  // 收到子组件传过来的最新设置（含未保存的 keepRecent 等）
+  if (newSettings) {
+    // 1) 立即同步更新内存（同步），保证后续 runBackup 读到的是新值
+    settings.value = newSettings
+    // 2) 后台持久化到 DB（不 await，避免阻塞上传）
+    void saveSettings(newSettings)
+  }
+  // 3) 立即触发一次备份 + 自动清理（Rust 端处理）
+  //    runBackup 内部读最新的 settings.cloudSync.keepRecent
+  void runBackup();
+}
+
 async function handleClearData() {
   const ok = await clearAllTodos();
   if (ok) {
@@ -736,6 +750,7 @@ async function handleCancelReminder(id: string) {
             @clear-data="handleClearData"
             @export-db="handleExportDb"
             @import-db="handleImportDb"
+            @backup-now="handleBackupNow"
           />
           <ReportDialog
             v-model:open="showReport"

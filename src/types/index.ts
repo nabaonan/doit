@@ -110,6 +110,7 @@ export interface AppSettings {
     webdavPassword: string
     fetchOnStartup: boolean
     uploadOnExit: boolean
+    keepRecent: number
   }
   autoBackup: ScheduleConfig
   autoRestore: ScheduleConfig

@@ -15,7 +15,10 @@ const emit = defineEmits<{
   (e: "clear-data"): void;
   (e: "export-db"): void;
   (e: "import-db"): void;
+  (e: "backup-now", settings: AppSettings): void;
 }>();
+
+const backupNowLoading = ref(false);
 
 const localSettings = ref<AppSettings>(JSON.parse(JSON.stringify(props.settings)));
 const recordingShortcut = ref(false);
@@ -189,6 +192,24 @@ function confirmClearData() {
     },
   });
 }
+
+async function handleBackupNow() {
+  if (backupNowLoading.value) return;
+  backupNowLoading.value = true;
+  try {
+    // 把当前最新设置（包含 keepRecent 等未保存改动）作为参数传给父组件，
+    // 避免父组件 handleSaveSettings 异步 + handleBackupNow 同步导致的时序竞态：
+    // 之前 emit("save") 和 emit("backup-now") 都同步排队，runBackup 读到的
+    // settings.value 还是旧值，新 keepRecent 没有生效。
+    const newSettings = JSON.parse(JSON.stringify(localSettings.value));
+    emit("backup-now", newSettings);
+  } finally {
+    // loading 短暂保持，给用户视觉反馈
+    setTimeout(() => {
+      backupNowLoading.value = false;
+    }, 1500);
+  }
+}
 </script>
 
 <template>
@@ -337,6 +358,21 @@ function confirmClearData() {
                 placeholder="密码"
                 size="small"
               />
+
+              <!-- 立即备份：手动触发上传 + 清理旧备份 -->
+              <div class="flex items-center justify-between mt-1">
+                <span class="text-xs text-[var(--muted-foreground)]">
+                  立即把本地数据上传到 WebDAV（旧的会自动清理）
+                </span>
+                <a-button
+                  size="small"
+                  :loading="backupNowLoading"
+                  :disabled="!localSettings.cloudSync.webdavUrl"
+                  @click="handleBackupNow"
+                >
+                  立即备份
+                </a-button>
+              </div>
             </div>
           </div>
 
@@ -384,6 +420,29 @@ function confirmClearData() {
                 ? "关闭窗口时自动把本地最新数据上传到 WebDAV，与下方定时任务相互独立"
                 : "需先启用云同步" }}
             </p>
+            <div class="flex items-center justify-between mt-2">
+              <span
+                class="text-sm"
+                :class="{ 'text-[var(--muted-foreground)]': !cloudSyncEnabled }"
+              >
+                云端保留近
+              </span>
+              <a-input-number
+                v-model:value="localSettings.cloudSync.keepRecent"
+                :min="0"
+                :max="100"
+                :step="1"
+                :disabled="!cloudSyncEnabled"
+                size="small"
+                class="!w-20"
+              />
+              <span
+                class="text-sm"
+                :class="{ 'text-[var(--muted-foreground)]': !cloudSyncEnabled }"
+              >
+                条备份（0 = 不限制）
+              </span>
+            </div>
           </div>
 
           <!-- 定时备份 -->

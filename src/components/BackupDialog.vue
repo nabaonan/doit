@@ -77,14 +77,15 @@ async function handleTestConnection() {
 }
 
 async function handleUpload() {
-  const { webdavUrl, webdavUsername, webdavPassword } = webdavConfig.value;
+  const { webdavUrl, webdavUsername, webdavPassword, keepRecent } = webdavConfig.value;
   if (!webdavUrl) {
     message.warning("请先配置 WebDAV 地址");
     return;
   }
   uploading.value = true;
   try {
-    const result = await uploadDbBackup(webdavUrl, webdavUsername, webdavPassword);
+    // 把设置中的 keepRecent 透传过去，让 Rust 端在上传后按设置保留条数清理旧备份
+    const result = await uploadDbBackup(webdavUrl, webdavUsername, webdavPassword, keepRecent);
     message.success(result || "数据库备份上传成功");
   } catch (e: any) {
     message.error(e.message || "上传失败");

@@ -204,6 +204,7 @@ async fn upload_db_to_webdav(
     url: String,
     username: String,
     password: String,
+    keep_recent: Option<i64>,
 ) -> Result<String, String> {
     let db = db_path(&app)?;
 
@@ -232,7 +233,7 @@ async fn upload_db_to_webdav(
 
     let mut uploaded = Vec::new();
 
-    for name in &[ts_name, latest_name] {
+    for name in &[&ts_name, &latest_name] {
         let full_url = format!("{}{}", base, name);
         eprintln!("[upload_db] PUT {} ({} bytes)", full_url, data_len);
         let body = Bytes::from(data.clone());
@@ -254,10 +255,194 @@ async fn upload_db_to_webdav(
             return Err(format!("上传 {} 失败: HTTP {} - {}", name, status, text));
         }
 
-        uploaded.push(name.clone());
+        uploaded.push((*name).clone());
+    }
+
+    // 上传成功后清理旧备份（Rust 端做，失败不影响上传结果）
+    if let Some(keep) = keep_recent {
+        if keep > 0 {
+            // 传 ts_name 让 prune 知道"刚上传的这个文件"，
+            // 避免 WebDAV 服务器还没把新文件索引进 PROPFIND 列表时误判总数
+            match prune_old_backups(&client, &base, &auth_header, keep, ts_name.as_str()).await {
+                Ok(deleted) => {
+                    if deleted > 0 {
+                        eprintln!("[upload_db] pruned {} old backups (keep_recent={})", deleted, keep);
+                    } else {
+                        eprintln!("[upload_db] no old backups to prune (keep_recent={})", keep);
+                    }
+                }
+                Err(e) => {
+                    eprintln!("[upload_db] prune failed (non-fatal): {}", e);
+                }
+            }
+        }
     }
 
     Ok(format!("上传成功 ({} bytes): {}", data_len, uploaded.join(", ")))
+}
+
+/// PROPFIND 列出云端所有 doit-db-backup_<ts>.db 文件名（不含 doit-db-latest.db）
+/// 倒序：最新优先
+async fn list_webdav_backups_inner(
+    client: &reqwest::Client,
+    base: &str,
+    auth_header: &str,
+) -> Result<Vec<String>, String> {
+    let body = r#"<?xml version="1.0" encoding="utf-8" ?>
+<d:propfind xmlns:d="DAV:">
+  <d:prop>
+    <d:displayname/>
+    <d:resourcetype/>
+  </d:prop>
+</d:propfind>"#;
+    let resp = client
+        .request(
+            reqwest::Method::from_bytes(b"PROPFIND").map_err(|e| format!("无效方法: {}", e))?,
+            base,
+        )
+        .header("Authorization", auth_header)
+        .header("Depth", "1")
+        .header("Content-Type", "application/xml; charset=utf-8")
+        .body(body.as_bytes().to_vec())
+        .send()
+        .await
+        .map_err(|e| format!("PROPFIND 失败: {}", e))?;
+
+    let status = resp.status().as_u16();
+    if status < 200 || status >= 300 {
+        let text = resp.text().await.unwrap_or_default();
+        return Err(format!("PROPFIND 失败: HTTP {} - {}", status, text));
+    }
+    let text = resp.text().await.map_err(|e| format!("读取响应失败: {}", e))?;
+
+    // 用正则从 XML 文本中提取所有 doit-db-backup_<ts>.db
+    // 不依赖 XML 命名空间前缀解析（不同 WebDAV 服务器差异很大）
+    let re_pattern = format!(
+        r"{}{}{}",
+        regex::escape("doit-db-backup_"), r"\d+", regex::escape(".db")
+    );
+    let re = regex::Regex::new(&re_pattern)
+        .map_err(|e| format!("正则编译失败: {}", e))?;
+    let mut files: Vec<String> = re
+        .find_iter(&text)
+        .map(|m| m.as_str().to_string())
+        .collect();
+    files.sort();
+    files.reverse();
+    files.dedup();
+    Ok(files)
+}
+
+async fn prune_old_backups(
+    client: &reqwest::Client,
+    base: &str,
+    auth_header: &str,
+    keep_recent: i64,
+    current_upload: &str,
+) -> Result<usize, String> {
+    let files = list_webdav_backups_inner(client, base, auth_header).await?;
+
+    // 关键：WebDAV 服务器（飞牛/群晖/Nextcloud 等）在 PUT 之后不会立即把新文件
+    // 索引进 PROPFIND 响应。这里先检查"刚上传的文件"是否在列表中：
+    //   - 在：total = files.len()（已包含刚上传的）
+    //   - 不在：total = files.len() + 1（补偿一个还没被索引的刚上传文件）
+    // 这样无论服务器索引是否及时，都能正确计算需要删除的数量。
+    let current_in_list = files.iter().any(|f| f == current_upload);
+    let total = files.len() + if current_in_list { 0 } else { 1 };
+
+    eprintln!(
+        "[upload_db] found {} backup files (current_in_list={}, total={}, keep_recent={}): {:?}",
+        files.len(),
+        current_in_list,
+        total,
+        keep_recent,
+        files
+    );
+
+    if total as i64 <= keep_recent {
+        return Ok(0);
+    }
+    let to_delete_count = total - keep_recent as usize;
+    // files 已按时间倒序（最新优先），要删的是最旧的 take(to_delete_count) 个。
+    // 若 current_upload 在列表中，需要先过滤掉（它是要保留的）。
+    let candidates: Vec<String> = files
+        .into_iter()
+        .filter(|f| f != current_upload)
+        .collect();
+    let to_delete: Vec<String> = candidates
+        .iter()
+        .rev()
+        .take(to_delete_count)
+        .cloned()
+        .collect();
+    eprintln!(
+        "[upload_db] deleting {} old backups: {:?}",
+        to_delete.len(),
+        to_delete
+    );
+    let mut deleted = 0usize;
+    for name in &to_delete {
+        let full_url = format!("{}{}", base, name);
+        match client
+            .delete(&full_url)
+            .header("Authorization", auth_header)
+            .send()
+            .await
+        {
+            Ok(resp) => {
+                let status = resp.status().as_u16();
+                // 200/204 = 成功，404 = 已不存在（视为成功）
+                if status == 200 || status == 204 || status == 404 {
+                    eprintln!("[upload_db] deleted {} (HTTP {})", name, status);
+                    deleted += 1;
+                } else {
+                    eprintln!("[upload_db] delete {} failed: HTTP {}", name, status);
+                }
+            }
+            Err(e) => {
+                eprintln!("[upload_db] delete {} error: {}", name, e);
+            }
+        }
+    }
+    Ok(deleted)
+}
+
+#[tauri::command]
+async fn list_webdav_backups(
+    url: String,
+    username: String,
+    password: String,
+) -> Result<Vec<String>, String> {
+    let client = make_client()?;
+    let auth_header = build_auth_header(&username, &password);
+    let base = if url.ends_with('/') { url.clone() } else { format!("{}/", url) };
+    list_webdav_backups_inner(&client, &base, &auth_header).await
+}
+
+#[tauri::command]
+async fn delete_webdav_backup(
+    url: String,
+    username: String,
+    password: String,
+    filename: String,
+) -> Result<String, String> {
+    let client = make_client()?;
+    let auth_header = build_auth_header(&username, &password);
+    let base = if url.ends_with('/') { url.clone() } else { format!("{}/", url) };
+    let full_url = format!("{}{}", base, filename);
+    let resp = client
+        .delete(&full_url)
+        .header("Authorization", &auth_header)
+        .send()
+        .await
+        .map_err(|e| format!("删除失败: {}", e))?;
+    let status = resp.status().as_u16();
+    if status == 200 || status == 204 || status == 404 {
+        Ok(format!("deleted {} (HTTP {})", filename, status))
+    } else {
+        let text = resp.text().await.unwrap_or_default();
+        Err(format!("删除失败: HTTP {} - {}", status, text))
+    }
 }
 
 #[tauri::command]
@@ -494,6 +679,8 @@ pub fn run() {
             tauri_fetch,
             upload_db_to_webdav,
             download_db_from_webdav,
+            list_webdav_backups,
+            delete_webdav_backup,
             clean_export_db,
             diagnose_db_paths,
             exit_app
