@@ -1,5 +1,34 @@
 # Changelog
 
+## v0.1.43 (2026-06-21)
+
+### 新功能
+
+- 独立标签设置，增加编辑标签的功能 (`894ad3e` by @nabaonan)
+
+### 重构
+
+- 提取通用删除逻辑到ColorLabelRow组件 (`4f06095` by @nabaonan)
+- 重构分类/标签管理弹窗，复用颜色标签组件 (`870455d` by @nabaonan)
+- 优化标签编辑交互与代码结构 (`e3e4428` by @nabaonan)
+- 重构设置弹窗为左右分栏布局，配置unplugin-vue-components实现antdv组件自动导入 (`fe7433f` by @nabaonan)
+
+### 文档更新
+
+- 更新 Changelog for v0.1.42 (`adb847f` by @github-actions[bot])
+
+### 构建/工具
+
+- release v0.1.43 (`6b7640c` by @内小子)
+- release v0.1.42 (`669d803` by @内小子)
+
+### 其他变更
+
+- Merge branch 'main' of github.com:nabaonan/doit (`d8695d5` by @内小子)
+
+---
+
+
 ## v0.1.42 (2026-06-19)
 
 ### 新功能
