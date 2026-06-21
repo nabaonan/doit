@@ -71,6 +71,34 @@ const showTagDialog = ref(false);
 const reminderTodoId = ref<string | null>(null);
 const showReminder = ref(false);
 
+// 跟踪 settings 加载状态 + 默认分类是否已应用，避免覆盖用户手动选择
+let settingsLoaded = false;
+let defaultApplied = false;
+
+function applyDefaultCategory() {
+  if (defaultApplied) return;
+  const defaultId = settings.value.defaultCategoryId;
+  if (!defaultId) {
+    defaultApplied = true;
+    return;
+  }
+  const exists = (settings.value.categories || []).some((c) => c.id === defaultId);
+  if (exists) {
+    selectedCatId.value = defaultId;
+  }
+  defaultApplied = true;
+}
+
+// 监听 defaultCategoryId 变化（仅在 settings 加载完成后才应用）
+watch(
+  () => [settings.value.defaultCategoryId, settings.value.categories] as const,
+  () => {
+    if (!settingsLoaded) return;
+    if (defaultApplied) return;
+    applyDefaultCategory();
+  }
+);
+
 const reminderTodo = computed(() => {
   if (!reminderTodoId.value) return null;
   return todos.value.find((t) => t.id === reminderTodoId.value) ?? null;
@@ -143,22 +171,19 @@ onMounted(async () => {
     await initSettings();
     todos.value = await getAllTodos();
     settings.value = await getSettings();
-    console.log("[doit] DB initialized, todos:", todos.value.length, "settings loaded");
+    console.log(
+      "[doit] settings loaded, defaultCategoryId:",
+      settings.value.defaultCategoryId
+    );
   } catch (e) {
     console.warn("[doit] DB unavailable:", e);
   }
   applyTheme(settings.value.theme);
   startSystemThemeTimer();
 
-  // 应用默认分类（若设置了且分类仍存在）
-  if (settings.value.defaultCategoryId) {
-    const exists = (settings.value.categories || []).some(
-      (c) => c.id === settings.value.defaultCategoryId
-    );
-    if (exists) {
-      selectedCatId.value = settings.value.defaultCategoryId;
-    }
-  }
+  // 应用默认分类（settings 已加载完成）
+  settingsLoaded = true;
+  applyDefaultCategory();
 
   // 启动自动备份/恢复调度器
   setSchedulerCallbacks({
