@@ -4,7 +4,7 @@ import { CopyOutlined, DownloadOutlined, FileTextOutlined } from "@antdv-next/ic
 import dayjs from "dayjs";
 import isoWeek from "dayjs/plugin/isoWeek";
 import { jsPDF } from "jspdf";
-import type { TodoItem, TodoItemNode } from "../types";
+import type { TodoItem, TodoItemNode, Category } from "../types";
 import { flatToNested } from "../types";
 
 dayjs.extend(isoWeek);
@@ -12,6 +12,7 @@ dayjs.extend(isoWeek);
 const props = defineProps<{
   open: boolean;
   todos: TodoItem[];
+  categories: Category[];
 }>();
 
 const emit = defineEmits<{
@@ -19,6 +20,8 @@ const emit = defineEmits<{
 }>();
 
 const reportType = ref<"daily" | "weekly">("daily");
+// 分类筛选：__all__ = 全部, __none__ = 未分类, 否则为 category id
+const catFilter = ref<string>("__all__");
 
 const todayStr = computed(() => dayjs().format("YYYY-MM-DD"));
 
@@ -28,14 +31,59 @@ const weekRange = computed(() => {
   return { start, end };
 });
 
+const catFilterOptions = computed(() => {
+  return [
+    { label: "全部", value: "__all__" },
+    ...props.categories.map((c) => ({ label: c.name, value: c.id })),
+  ];
+});
+
 const filteredTodos = computed(() => {
+  let list = props.todos;
   if (reportType.value === "daily") {
-    return props.todos.filter((t) => dayjs(t.createdAt).format("YYYY-MM-DD") === todayStr.value);
+    list = list.filter((t) => dayjs(t.createdAt).format("YYYY-MM-DD") === todayStr.value);
+  } else {
+    list = list.filter((t) => {
+      const d = dayjs(t.createdAt).format("YYYY-MM-DD");
+      return d >= weekRange.value.start && d <= weekRange.value.end;
+    });
   }
-  return props.todos.filter((t) => {
-    const d = dayjs(t.createdAt).format("YYYY-MM-DD");
-    return d >= weekRange.value.start && d <= weekRange.value.end;
-  });
+  if (catFilter.value === "__all__") {
+    return list;
+  } else if (catFilter.value === "__none__") {
+    return list.filter((t) => !t.catId);
+  }
+  return list.filter((t) => t.catId === catFilter.value);
+});
+
+// "全部" 模式下按分类分组输出
+const groupedByCategory = computed(() => {
+  if (catFilter.value !== "__all__") return null;
+  const catMap = new Map(props.categories.map((c) => [c.id, c]));
+  const buckets = new Map<string, TodoItem[]>();
+  for (const t of filteredTodos.value) {
+    const key = t.catId || "__none__";
+    if (!buckets.has(key)) buckets.set(key, []);
+    buckets.get(key)!.push(t);
+  }
+  const groups: { key: string; name: string; color: string; todos: TodoItem[] }[] = [];
+  // 已有分类按 settings.categories 顺序排列，未分类最后
+  for (const c of props.categories) {
+    if (buckets.has(c.id)) {
+      groups.push({ key: c.id, name: c.name, color: c.color, todos: buckets.get(c.id)! });
+    }
+  }
+  if (buckets.has("__none__")) {
+    groups.push({ key: "__none__", name: "未分类", color: "#9CA3AF", todos: buckets.get("__none__")! });
+  }
+  // 兜底：当前 props.categories 已删除的旧 id
+  for (const [key, todos] of buckets) {
+    if (key === "__none__") continue;
+    if (!catMap.has(key) && !groups.some((g) => g.key === key)) {
+      groups.push({ key, name: "已删除分类", color: "#9CA3AF", todos });
+    }
+  }
+  return groups;
 });
 
 const nestedTodos = computed(() => flatToNested(filteredTodos.value));
@@ -46,6 +94,12 @@ const completionRate = computed(() => {
   const pct = total > 0 ? Math.round((done / total) * 100) : 0;
   return { done, total, pct };
 });
+
+function groupStats(todos: TodoItem[]) {
+  const total = todos.length;
+  const done = todos.filter((t) => t.completed).length;
+  return { total, done, pct: total > 0 ? Math.round((done / total) * 100) : 0 };
+}
 
 function formatDuration(createdAt: string, completedAt: string | null): string {
   if (!completedAt) return "";
@@ -97,8 +151,19 @@ const reportText = computed(() => {
 
   if (filteredTodos.value.length === 0) {
     lines.push("暂无数据");
+  } else if (groupedByCategory.value) {
+    for (const group of groupedByCategory.value) {
+      const stats = groupStats(group.todos);
+      lines.push(`## ${group.name}`);
+      lines.push(`完成率: ${stats.done}/${stats.total} (${stats.pct}%)`);
+      lines.push("");
+      const nested = flatToNested(group.todos);
+      lines.push(...renderTreeMarkdown(nested, 0));
+      lines.push("");
+    }
   } else {
-    lines.push(...renderTreeMarkdown(nestedTodos.value, 0));
+    const nested = nestedTodos.value;
+    lines.push(...renderTreeMarkdown(nested, 0));
   }
 
   return lines.join("\n");
@@ -171,8 +236,6 @@ async function buildPDFDoc(): Promise<jsPDF> {
   let y = 50;
 
   doc.setFontSize(11);
-  const todos = nestedTodos.value;
-
   function renderTreePDF(nodes: TodoItemNode[], depth: number) {
     for (const node of nodes) {
       const checkbox = node.completed ? "[x]" : "[ ]";
@@ -191,7 +254,33 @@ async function buildPDFDoc(): Promise<jsPDF> {
     }
   }
 
-  renderTreePDF(todos, 0);
+  function pageBreakIfNeeded(need = 20) {
+    if (y + need > 280) {
+      doc.addPage();
+      y = 20;
+    }
+  }
+
+  if (filteredTodos.value.length === 0) {
+    doc.text("暂无数据", 25, y);
+  } else if (groupedByCategory.value) {
+    for (const group of groupedByCategory.value) {
+      pageBreakIfNeeded(30);
+      doc.setFontSize(14);
+      doc.text(`${group.name}`, 20, y);
+      y += 7;
+      const stats = groupStats(group.todos);
+      doc.setFontSize(10);
+      doc.text(`完成率: ${stats.done}/${stats.total} (${stats.pct}%)`, 25, y);
+      y += 7;
+      doc.setFontSize(11);
+      const nested = flatToNested(group.todos);
+      renderTreePDF(nested, 0);
+      y += 4;
+    }
+  } else {
+    renderTreePDF(nestedTodos.value, 0);
+  }
 
   return doc;
 }
@@ -274,6 +363,19 @@ function onCancel() {
     centered
     destroyOnHidden
   >
+    <div class="mb-5">
+      <div class="flex items-center gap-2 text-sm">
+        <span class="text-[var(--muted-foreground)] shrink-0">分类</span>
+        <a-select
+          v-model:value="catFilter"
+          :options="catFilterOptions"
+          size="small"
+          class="flex-1"
+          :dropdown-match-select-width="false"
+        />
+      </div>
+    </div>
+
     <a-segmented
       v-model:value="reportType"
       :options="[
@@ -284,13 +386,9 @@ function onCancel() {
       class="mb-4"
     />
 
-    <div class="flex items-center gap-4 mb-4 text-sm">
-      <span class="text-[var(--muted-foreground)]">
-        {{ reportType === "daily" ? "今日" : "本周" }}
-      </span>
-      <span class="font-medium">
-        已完成 {{ completionRate.done }} / {{ completionRate.total }}（{{ completionRate.pct }}%）
-      </span>
+    <div class="mb-4 text-sm text-[var(--muted-foreground)]">
+      {{ reportType === "daily" ? "今日" : "本周" }}
+      已完成 {{ completionRate.done }} / {{ completionRate.total }}（{{ completionRate.pct }}%）
     </div>
 
     <div

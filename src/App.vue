@@ -631,6 +631,7 @@ async function handleCancelReminder(id: string) {
           <ReportDialog
             v-model:open="showReport"
             :todos="todos"
+            :categories="settings.categories"
           />
           <CategoryDialog
             v-model:open="showCategoryDialog"
