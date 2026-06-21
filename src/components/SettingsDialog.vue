@@ -47,8 +47,27 @@ const categoryMenuItems = [
   { key: "data", label: "数据", icon: () => h(DatabaseOutlined) },
 ];
 
+const menuTheme = {
+  components: {
+    Menu: {
+      // 圆角：菜单项圆角
+      itemBorderRadius: 6,
+      subMenuItemBorderRadius: 6,
+      // 内边距：菜单项左右内边距
+      itemPaddingInline: 12,
+      // 高度：菜单项高度（影响行高）
+      itemHeight: 36,
+      // 外边距：菜单项上下/左右外边距
+      itemMarginBlock: 2,
+      itemMarginInline: 4,
+      // 图标尺寸
+      iconSize: 14,
+    },
+  },
+};
+
 const menuStyles = {
-  item: { height: "28px", lineHeight: "28px", marginBlock: "2px", marginInline: 0 },
+  // 仍保留 styles 用于调整 fontSize（无对应 token 的项）
   itemIcon: { fontSize: "14px" },
   itemContent: { fontSize: "13px" },
   list: { paddingInline: 0 },
@@ -226,15 +245,17 @@ async function handleBackupNow() {
   >
     <div class="flex h-[520px] max-h-[70vh]">
       <!-- 左侧分类菜单 -->
-      <div class="w-[120px] shrink-0 border-r border-[var(--border)] py-1 overflow-y-auto">
-        <a-menu
-          mode="inline"
-          :items="categoryMenuItems"
-          :selectedKeys="[activeCategory]"
-          :styles="menuStyles"
-          @select="handleCategorySelect"
-          style="border-inline-end: none !important;"
-        />
+      <div class="settings-menu w-[120px] shrink-0 border-r border-[var(--border)] py-1 overflow-y-auto">
+        <a-config-provider :theme="menuTheme">
+          <a-menu
+            mode="inline"
+            :items="categoryMenuItems"
+            :selectedKeys="[activeCategory]"
+            :styles="menuStyles"
+            @select="handleCategorySelect"
+            style="border-inline-end: none !important;"
+          />
+        </a-config-provider>
       </div>
 
       <!-- 右侧内容 -->
