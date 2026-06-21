@@ -4,6 +4,7 @@ import { message } from "antdv-next";
 import {
   CloudUploadOutlined,
   CloudDownloadOutlined,
+  ApiOutlined,
   CheckCircleOutlined,
   CloseCircleOutlined,
 } from "@antdv-next/icons";
@@ -142,30 +143,37 @@ function onCancel() {
   >
     <div class="flex flex-col gap-4">
       <!-- 连接测试 -->
-      <div class="flex flex-col gap-2 p-3 rounded-lg border border-[var(--border)]">
-        <div class="flex items-center justify-between">
+      <div class="flex items-center justify-between p-3 rounded-lg border border-[var(--border)]">
+        <div class="flex flex-col">
           <span class="text-sm text-[var(--foreground)]">WebDAV 连接</span>
-          <a-button
-            size="small"
-            :loading="connecting"
-            @click="handleTestConnection"
-          >
-            {{ connected === null ? "测试连接" : "重新测试" }}
-          </a-button>
+          <span v-if="connected === true" class="flex items-center gap-1 text-xs text-green-600 mt-0.5">
+            <CheckCircleOutlined /> 已连接
+          </span>
+          <span v-else-if="connected === false" class="flex items-center gap-1 text-xs text-red-500 mt-0.5">
+            <CloseCircleOutlined /> 连接失败
+          </span>
+          <span v-else class="text-xs text-[var(--muted-foreground)] mt-0.5">
+            点击测试 WebDAV 是否可访问
+          </span>
         </div>
-        <div v-if="connected === true" class="flex items-center gap-1 text-xs text-green-600">
-          <CheckCircleOutlined /> 已连接
-        </div>
-        <div v-else-if="connected === false" class="flex items-center gap-1 text-xs text-red-500">
-          <CloseCircleOutlined /> 连接失败
-        </div>
-        <div
-          v-if="connectionMessage"
-          class="text-xs whitespace-pre-wrap break-all bg-[var(--muted)] p-2 rounded mt-1"
-          :class="connected ? 'text-green-700' : 'text-red-600'"
+        <a-button
+          type="primary"
+          :loading="connecting"
+          :disabled="!webdavConfig.webdavUrl"
+          @click="handleTestConnection"
         >
-          {{ connectionMessage }}
-        </div>
+          <template #icon><ApiOutlined /></template>
+          测试
+        </a-button>
+      </div>
+
+      <!-- 连接结果提示（在按钮下方单独一行展示详细信息） -->
+      <div
+        v-if="connectionMessage"
+        class="text-xs whitespace-pre-wrap break-all bg-[var(--muted)] p-2 rounded -mt-2"
+        :class="connected ? 'text-green-700' : 'text-red-600'"
+      >
+        {{ connectionMessage }}
       </div>
 
       <!-- 上传 -->
