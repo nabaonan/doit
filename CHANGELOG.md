@@ -1,5 +1,68 @@
 # Changelog
 
+## v0.1.42 (2026-06-19)
+
+### 新功能
+
+- 增加嗲办事项倒计时显示 (`472f193` by @nabaonan)
+- 新增待办事项定时提醒功能 (`5df345a` by @nabaonan)
+
+### 样式调整
+
+- 优化倒计时样式 (`22d0cc9` by @nabaonan)
+
+### 文档更新
+
+- 更新 Changelog for v0.1.41 (`9c3be03` by @github-actions[bot])
+
+### 构建/工具
+
+- release v0.1.42 (`f1f5c07` by @nabaonan)
+
+---
+
+
+## v0.1.41 (2026-06-19)
+
+### 新功能
+
+- 增加定时任务备份和恢复 (`7839e5d` by @内小子)
+- 实现完整的WebDAV云同步功能 (`ace35b3` by @内小子)
+
+### Bug 修复
+
+- 修改ui顶部显示图标 (`dca3b51` by @内小子)
+- 修复webdav恢复的问题 (`7f8d822` by @内小子)
+- sqllite备份能力，优化数据库路径诊断与迁移 (`bae6b2a` by @内小子)
+- 修复排序问题并优化空内容子任务处理 (`f318d3e` by @内小子)
+
+### 重构
+
+- 重构数据库备份同步逻辑，修复重复表问题 (`1cd8f93` by @内小子)
+- 迁移数据库备份逻辑到Rust侧，优化上传下载流程 (`e75373d` by @内小子)
+- 重构云同步逻辑，改用直接备份SQLite数据库 (`bc351b0` by @内小子)
+
+### 样式调整
+
+- 优化样式 (`304ff65` by @内小子)
+- 替换全局字体引入为自定义font-face配置 (`b6052e0` by @内小子)
+
+### 文档更新
+
+- 去掉ip显示 (`5be421d` by @内小子)
+- 更新 Changelog for v0.1.40 (`4b75b5e` by @github-actions[bot])
+
+### 构建/工具
+
+- release v0.1.41 (`2da95e5` by @内小子)
+
+### 其他变更
+
+- Merge branch 'main' of github.com:nabaonan/doit (`30d0438` by @内小子)
+
+---
+
+
 ## v0.1.40 (2026-06-17)
 
 ### 新功能

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { FileTextOutlined, SettingOutlined, AppstoreOutlined, CloudUploadOutlined } from "@antdv-next/icons";
+import { FileTextOutlined, SettingOutlined, AppstoreOutlined, CloudUploadOutlined, TagsOutlined } from "@antdv-next/icons";
 import { ref, computed } from "vue";
 import type { Category } from "../types";
 
@@ -15,6 +15,7 @@ const emit = defineEmits<{
   (e: "update:view", view: string): void;
   (e: "select-cat", catId: string | null): void;
   (e: "manage-categories"): void;
+  (e: "manage-tags"): void;
 }>();
 
 const currentView = ref("today");
@@ -57,6 +58,10 @@ function onCatChange(value: string | undefined) {
 
 function handleManageCategories() {
   emit("manage-categories");
+}
+
+function handleManageTags() {
+  emit("manage-tags");
 }
 </script>
 
@@ -115,6 +120,15 @@ function handleManageCategories() {
         title="分类管理"
       >
         <AppstoreOutlined />
+      </a-button>
+      <a-button
+        type="text"
+        size="small"
+        shape="circle"
+        @click="handleManageTags"
+        title="标签管理"
+      >
+        <TagsOutlined />
       </a-button>
       <a-button
         type="text"

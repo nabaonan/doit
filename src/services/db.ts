@@ -32,6 +32,13 @@ export async function getDb() {
     )`
   )
 
+  // 添加 remind_at 列（旧数据库迁移）
+  try {
+    await exec("ALTER TABLE todos ADD COLUMN remind_at TEXT")
+  } catch {
+    // 列已存在，忽略
+  }
+
   // 把 localStorage 中残留的旧数据迁移到 SQLite（一次性，迁移后保留 localStorage 备份 7 天）
   await migrateFromLocalStorage(exec, select)
 
@@ -80,8 +87,8 @@ async function migrateFromLocalStorage(
         for (const it of items) {
           await exec(
             `INSERT OR IGNORE INTO todos
-              (id, content, completed, created_at, completed_at, sort_order, tag_id, cat_id, parent_id)
-              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+              (id, content, completed, created_at, completed_at, sort_order, tag_id, cat_id, parent_id, remind_at)
+              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
             [
               it.id ?? crypto.randomUUID(),
               it.content ?? "",
@@ -92,6 +99,7 @@ async function migrateFromLocalStorage(
               it.tag_id ?? null,
               it.cat_id ?? null,
               it.parent_id ?? null,
+              it.remind_at ?? null,
             ]
           )
         }

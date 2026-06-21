@@ -28,7 +28,6 @@ const defaultSettings: AppSettings = {
     webdavUrl: "",
     webdavUsername: "",
     webdavPassword: "",
-    localSyncPath: "",
   },
   autoBackup: { ...defaultAutoSchedule },
   autoRestore: { ...defaultAutoSchedule },

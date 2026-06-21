@@ -8,6 +8,7 @@ export interface TodoItem {
   tagId: string | null
   catId: string | null
   parentId: string | null
+  remindAt: string | null
 }
 
 export interface TodoItemNode {
@@ -20,6 +21,7 @@ export interface TodoItemNode {
   tagId: string | null
   catId: string | null
   parentId: string | null
+  remindAt: string | null
   children: TodoItemNode[]
 }
 
@@ -101,11 +103,10 @@ export interface AppSettings {
   categories: Category[]
   cloudSync: {
     enabled: boolean
-    provider: "webdav" | "local_folder"
+    provider: "webdav"
     webdavUrl: string
     webdavUsername: string
     webdavPassword: string
-    localSyncPath: string
   }
   autoBackup: ScheduleConfig
   autoRestore: ScheduleConfig

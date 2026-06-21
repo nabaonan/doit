@@ -40,7 +40,7 @@ export function sortTodos(todos: TodoItem[]): TodoItem[] {
 export async function getAllTodos(): Promise<TodoItem[]> {
   const db = await getDb()
   if (!db) return []
-  const rows = await (db as { select: <T>(sql: string) => Promise<T> }).select<Array<{
+  const rows = await (db as { select: <T>(sql: string, params?: unknown[]) => Promise<T[]> }).select<{
     id: string
     content: string
     completed: number
@@ -50,8 +50,9 @@ export async function getAllTodos(): Promise<TodoItem[]> {
     tag_id: string | null
     cat_id: string | null
     parent_id: string | null
-  }>>("SELECT * FROM todos ORDER BY completed ASC, sort_order ASC")
-  const items = rows.map((row) => ({
+    remind_at: string | null
+  }>("SELECT * FROM todos ORDER BY completed ASC, sort_order ASC")
+  const items: TodoItem[] = rows.map((row) => ({
     id: row.id,
     content: row.content,
     completed: row.completed === 1,
@@ -61,6 +62,7 @@ export async function getAllTodos(): Promise<TodoItem[]> {
     tagId: row.tag_id,
     catId: row.cat_id,
     parentId: row.parent_id,
+    remindAt: row.remind_at ?? null,
   }))
   return sortTodos(items)
 }
@@ -73,8 +75,8 @@ export async function addTodo(item: TodoItem): Promise<boolean> {
   }
   try {
     await (db as { execute: (sql: string, params: unknown[]) => Promise<void> }).execute(
-      "INSERT INTO todos (id, content, completed, created_at, completed_at, sort_order, tag_id, cat_id, parent_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
-      [item.id, item.content, item.completed ? 1 : 0, item.createdAt, item.completedAt, item.order, item.tagId, item.catId, item.parentId]
+      "INSERT INTO todos (id, content, completed, created_at, completed_at, sort_order, tag_id, cat_id, parent_id, remind_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)",
+      [item.id, item.content, item.completed ? 1 : 0, item.createdAt, item.completedAt, item.order, item.tagId, item.catId, item.parentId, item.remindAt]
     )
     console.log("[doit] addTodo success:", item.id)
     return true
@@ -121,6 +123,10 @@ export async function updateTodo(id: string, data: Partial<TodoItem>): Promise<b
   if (data.parentId !== undefined) {
     setClauses.push(`parent_id = $${params.length + 1}`)
     params.push(data.parentId)
+  }
+  if (data.remindAt !== undefined) {
+    setClauses.push(`remind_at = $${params.length + 1}`)
+    params.push(data.remindAt)
   }
 
   if (setClauses.length === 0) return true
