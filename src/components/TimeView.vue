@@ -124,7 +124,7 @@ function onSelect({ key }: { key: string }) {
         <template v-for="node in selectedDayNodes" :key="node.id">
           <TodoItem
             :todo="node"
-            :settings="{ completionMode: 'checkbox', longPressDuration: 3, theme: 'system', happyMode: false, fontFamily: 'default', addTodoShortcut: { key: 'Enter', ctrl: false, shift: false, alt: false, meta: false }, tags: [], categories: [], defaultCategoryId: null, cloudSync: { enabled: false, provider: 'webdav', webdavUrl: '', webdavUsername: '', webdavPassword: '' }, autoBackup: { enabled: false, interval: 30, unit: 'minute' }, autoRestore: { enabled: false, interval: 30, unit: 'minute' } }"
+            :settings="{ completionMode: 'checkbox', longPressDuration: 3, theme: 'system', happyMode: false, fontFamily: 'default', addTodoShortcut: { key: 'Enter', ctrl: false, shift: false, alt: false, meta: false }, tags: [], categories: [], defaultCategoryId: null, cloudSync: { enabled: false, provider: 'webdav', webdavUrl: '', webdavUsername: '', webdavPassword: '', fetchOnStartup: true, uploadOnExit: true }, autoBackup: { enabled: false, interval: 30, unit: 'minute' }, autoRestore: { enabled: false, interval: 30, unit: 'minute' } }"
             :is-editing="false"
             :edit-content="''"
             :readonly="true"
@@ -134,7 +134,7 @@ function onSelect({ key }: { key: string }) {
             <div v-for="child in node.children" :key="child.id" class="pl-6">
               <TodoItem
                 :todo="child"
-                :settings="{ completionMode: 'checkbox', longPressDuration: 3, theme: 'system', happyMode: false, fontFamily: 'default', addTodoShortcut: { key: 'Enter', ctrl: false, shift: false, alt: false, meta: false }, tags: [], categories: [], defaultCategoryId: null, cloudSync: { enabled: false, provider: 'webdav', webdavUrl: '', webdavUsername: '', webdavPassword: '' }, autoBackup: { enabled: false, interval: 30, unit: 'minute' }, autoRestore: { enabled: false, interval: 30, unit: 'minute' } }"
+                :settings="{ completionMode: 'checkbox', longPressDuration: 3, theme: 'system', happyMode: false, fontFamily: 'default', addTodoShortcut: { key: 'Enter', ctrl: false, shift: false, alt: false, meta: false }, tags: [], categories: [], defaultCategoryId: null, cloudSync: { enabled: false, provider: 'webdav', webdavUrl: '', webdavUsername: '', webdavPassword: '', fetchOnStartup: true, uploadOnExit: true }, autoBackup: { enabled: false, interval: 30, unit: 'minute' }, autoRestore: { enabled: false, interval: 30, unit: 'minute' } }"
                 :is-editing="false"
                 :edit-content="''"
                 :readonly="true"

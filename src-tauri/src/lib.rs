@@ -319,6 +319,11 @@ async fn download_db_from_webdav(
 }
 
 #[tauri::command]
+fn exit_app(app: tauri::AppHandle) {
+    app.exit(0);
+}
+
+#[tauri::command]
 fn greet(name: &str) -> String {
     format!("Hello, {}! You've been greeted from Rust!", name)
 }
@@ -490,7 +495,8 @@ pub fn run() {
             upload_db_to_webdav,
             download_db_from_webdav,
             clean_export_db,
-            diagnose_db_paths
+            diagnose_db_paths,
+            exit_app
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch, provide } from "vue";
+import { ref, computed, onMounted, onBeforeUnmount, onUnmounted, watch, provide, nextTick } from "vue";
 import { theme as antTheme } from "antdv-next";
 import zhCN from "antdv-next/locale/zh_CN";
 import { HappyProvider } from "@antdv-next/happy-work-theme";
@@ -20,7 +20,7 @@ import type { TodoItem, AppSettings, Category } from "./types";
 import { init as initTodos, getAllTodos, addTodo, updateTodo, deleteTodo, reorderTodos, sortTodos, clearAllTodos } from "./services/todoService";
 import { init as initSettings, getSettings, saveSettings } from "./services/settingsService";
 import { exportDatabase, importDatabase } from "./services/dbService";
-import { startScheduler, stopScheduler, setCallbacks as setSchedulerCallbacks } from "./services/autoSyncService";
+import { startScheduler, stopScheduler, setCallbacks as setSchedulerCallbacks, runRestoreOnStartup, runBackupOnExit } from "./services/autoSyncService";
 import { loadReminders, scheduleReminder, cancelReminder as cancelReminderService, setNotificationCallback } from "./services/reminderService";
 import { message } from "antdv-next";
 import type { Tag } from "./types";
@@ -49,6 +49,8 @@ const settings = ref<AppSettings>({
     webdavUrl: "",
     webdavUsername: "",
     webdavPassword: "",
+    fetchOnStartup: true,
+    uploadOnExit: true,
   },
   autoBackup: {
     enabled: false,
@@ -70,6 +72,10 @@ const showCategoryDialog = ref(false);
 const showTagDialog = ref(false);
 const reminderTodoId = ref<string | null>(null);
 const showReminder = ref(false);
+// 关闭上传进行中标志，避免重复拦截或递归
+const exiting = ref(false);
+// 关闭时的 loading 遮罩显示标志
+const exitLoading = ref(false);
 
 // 跟踪 settings 加载状态 + 默认分类是否已应用，避免覆盖用户手动选择
 let settingsLoaded = false;
@@ -188,12 +194,12 @@ onMounted(async () => {
   // 启动自动备份/恢复调度器
   setSchedulerCallbacks({
     onBackupStatus: (s) => {
-      if (s === "自动备份完成") message.success(s);
-      else if (s === "自动备份失败") message.error(s);
+      if (s === "自动备份完成" || s === "关闭时上传完成") message.success(s);
+      else if (s === "自动备份失败" || s === "关闭时上传失败") message.error(s);
     },
     onRestoreStatus: (s) => {
-      if (s === "自动恢复完成") message.success(s);
-      else if (s === "自动恢复失败") message.error(s);
+      if (s === "自动恢复完成" || s === "云端数据拉取成功") message.success(s);
+      else if (s === "自动恢复失败" || s === "启动拉取失败") message.error(s);
     },
     onDataChanged: async () => {
       // 自动恢复后重新加载 todos 和 settings
@@ -205,6 +211,84 @@ onMounted(async () => {
       }
     },
   });
+
+  // 启动时拉取远程数据（后台异步、不阻塞 UI）
+  if (settings.value.cloudSync.enabled && settings.value.cloudSync.fetchOnStartup) {
+    runRestoreOnStartup();
+  }
+
+  // 注册关闭窗口时的上传监听（Tauri v2）
+  const tauri = (window as unknown as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__
+  if (tauri) {
+    try {
+      const { getCurrentWindow } = await import("@tauri-apps/api/window")
+      const { invoke } = await import("@tauri-apps/api/core")
+      const win = getCurrentWindow()
+      const unlisten = await win.onCloseRequested(async (event) => {
+        // ① 已在退出流程中：拦截递归点击，避免窗口在上传中途被原生销毁
+        if (exiting.value) {
+          event.preventDefault()
+          return
+        }
+
+        // ② 动态判断：是否需要在关闭时上传
+        //    检查顺序：cloudSync.enabled → uploadOnExit → provider/url
+        const cfg = settings.value.cloudSync
+        const needUpload =
+          cfg.enabled &&
+          cfg.uploadOnExit &&
+          cfg.provider === "webdav" &&
+          !!cfg.webdavUrl
+
+        // ③ 不管是否需要上传，都先 preventDefault 拦截原生关闭，
+        //    由我们显式调用 invoke("exit_app") 退出进程。
+        //    这样可以避免依赖 Tauri v2 onCloseRequested 内部在 handler
+        //    未 preventDefault 时自动 destroy() 的不可靠行为。
+        event.preventDefault()
+        exiting.value = true
+
+        // ④ 不需要上传：直接退出（同步分支，loading 不显示）
+        if (!needUpload) {
+          try {
+            await invoke("exit_app")
+          } catch (e) {
+            console.warn("[doit] exit_app 失败，回退到 win.destroy:", e)
+            try {
+              await win.destroy()
+            } catch (e2) {
+              console.error("[doit] win.destroy 也失败:", e2)
+            }
+          }
+          return
+        }
+
+        // ⑤ 需要上传：显示 loading，等待遮罩渲染，再上传
+        exitLoading.value = true
+        await nextTick()
+        try {
+          await runBackupOnExit()
+        } catch (e) {
+          console.warn("[doit] 关闭时上传异常:", e)
+        } finally {
+          try {
+            await invoke("exit_app")
+          } catch (e) {
+            console.warn("[doit] exit_app 失败，回退到 win.destroy:", e)
+            try {
+              await win.destroy()
+            } catch (e2) {
+              console.error("[doit] win.destroy 也失败，无法关闭窗口:", e2)
+            }
+          }
+        }
+      })
+      onBeforeUnmount(() => {
+        unlisten()
+      })
+    } catch (e) {
+      console.warn("[doit] 注册关闭上传监听失败:", e)
+    }
+  }
   setNotificationCallback(async (todoId: string, content: string) => {
     cancelReminderService(todoId);
     const todo = todos.value.find((t) => t.id === todoId);
@@ -686,6 +770,18 @@ async function handleCancelReminder(id: string) {
             @cancel-reminder="() => handleCancelReminder(reminderTodo!.id)"
             @update:open="(val) => { if (!val) { showReminder = false; reminderTodoId = null } }"
           />
+        </div>
+
+        <!-- 关闭时的上传 loading 遮罩，覆盖整个窗口（含所有 dialog） -->
+        <div
+          v-if="exitLoading"
+          class="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 backdrop-blur-sm"
+        >
+          <div class="bg-[var(--background)] border border-[var(--border)] rounded-xl p-6 shadow-2xl flex flex-col items-center gap-3 min-w-[260px]">
+            <a-spin size="large" />
+            <div class="text-sm font-medium">正在关闭</div>
+            <div class="text-xs text-[var(--muted-foreground)]">正在上传本地数据到云端...</div>
+          </div>
         </div>
       </a-app>
     </a-config-provider>

@@ -29,6 +29,8 @@ const defaultSettings: AppSettings = {
     webdavUrl: "",
     webdavUsername: "",
     webdavPassword: "",
+    fetchOnStartup: true,
+    uploadOnExit: true,
   },
   autoBackup: { ...defaultAutoSchedule },
   autoRestore: { ...defaultAutoSchedule },
@@ -72,9 +74,10 @@ export async function getSettings(): Promise<AppSettings> {
     defaultCategoryId: kv["defaultCategoryId"]
       ? JSON.parse(kv["defaultCategoryId"])
       : null,
-    cloudSync: kv["cloudSync"]
-      ? JSON.parse(kv["cloudSync"])
-      : { ...defaultSettings.cloudSync },
+    cloudSync: {
+      ...defaultSettings.cloudSync,
+      ...(kv["cloudSync"] ? JSON.parse(kv["cloudSync"]) : {}),
+    },
     autoBackup: parseSchedule(kv["autoBackup"]),
     autoRestore: parseSchedule(kv["autoRestore"]),
   }

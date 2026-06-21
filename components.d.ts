@@ -30,6 +30,7 @@ declare module 'vue' {
     ASegmented: typeof import('antdv-next')['Segmented']
     ASelect: typeof import('antdv-next')['Select']
     ASlider: typeof import('antdv-next')['Slider']
+    ASpin: typeof import('antdv-next')['Spin']
     ASwitch: typeof import('antdv-next')['Switch']
     ATag: typeof import('antdv-next')['Tag']
     ATooltip: typeof import('antdv-next')['Tooltip']

@@ -340,6 +340,52 @@ function confirmClearData() {
             </div>
           </div>
 
+          <!-- 启动时拉取（一次性，不与下方定时任务联动） -->
+          <div>
+            <h4 class="text-xs font-medium text-[var(--muted-foreground)] mb-2">启动时拉取</h4>
+            <div class="flex items-center justify-between">
+              <span
+                class="text-sm"
+                :class="{ 'text-[var(--muted-foreground)]': !cloudSyncEnabled }"
+              >
+                启动时拉取远程数据
+              </span>
+              <a-switch
+                v-model:checked="localSettings.cloudSync.fetchOnStartup"
+                :disabled="!cloudSyncEnabled"
+                size="small"
+              />
+            </div>
+            <p class="text-[11px] text-[var(--muted-foreground)] mt-1">
+              {{ cloudSyncEnabled
+                ? "应用启动时从 WebDAV 拉取最新数据并覆盖本地，与下方定时任务相互独立"
+                : "需先启用云同步" }}
+            </p>
+          </div>
+
+          <!-- 关闭时上传（一次性，不与下方定时任务联动） -->
+          <div>
+            <h4 class="text-xs font-medium text-[var(--muted-foreground)] mb-2">关闭时上传</h4>
+            <div class="flex items-center justify-between">
+              <span
+                class="text-sm"
+                :class="{ 'text-[var(--muted-foreground)]': !cloudSyncEnabled }"
+              >
+                关闭时上传本地数据
+              </span>
+              <a-switch
+                v-model:checked="localSettings.cloudSync.uploadOnExit"
+                :disabled="!cloudSyncEnabled"
+                size="small"
+              />
+            </div>
+            <p class="text-[11px] text-[var(--muted-foreground)] mt-1">
+              {{ cloudSyncEnabled
+                ? "关闭窗口时自动把本地最新数据上传到 WebDAV，与下方定时任务相互独立"
+                : "需先启用云同步" }}
+            </p>
+          </div>
+
           <!-- 定时备份 -->
           <div>
             <h4 class="text-xs font-medium text-[var(--muted-foreground)] mb-2 flex items-center gap-1.5">

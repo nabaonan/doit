@@ -45,6 +45,64 @@ export function restartScheduler(settings: () => AppSettings) {
   }
 }
 
+/**
+ * 启动时拉取远程（一次性，不进入定时调度）。
+ * 由 App.vue onMounted 在 settings 加载完成后调用。
+ */
+export async function runRestoreOnStartup(): Promise<void> {
+  if (!getSettings) return
+  const s = getSettings()
+  if (!s.cloudSync.enabled) return
+  if (!s.cloudSync.fetchOnStartup) return
+  if (s.cloudSync.provider !== "webdav" || !s.cloudSync.webdavUrl) return
+
+  try {
+    onRestoreStatus?.("正在拉取云端数据...")
+    await closeDb()
+    await new Promise((r) => setTimeout(r, 300))
+    await downloadDbBackup(
+      s.cloudSync.webdavUrl,
+      s.cloudSync.webdavUsername,
+      s.cloudSync.webdavPassword
+    )
+    await getDb()
+    onDataChanged?.()
+    onRestoreStatus?.("云端数据拉取成功")
+  } catch (e) {
+    console.warn("[doit] 启动拉取失败:", e)
+    onRestoreStatus?.("启动拉取失败")
+    // 失败时主动重新打开本地 DB，避免 DB 处于关闭状态导致后续查询失败
+    try {
+      await getDb()
+    } catch {}
+  }
+}
+
+/**
+ * 关闭时上传本地（一次性，不进入定时调度）。
+ * 由 App.vue 注册的 tauri onCloseRequested 监听器触发。
+ */
+export async function runBackupOnExit(): Promise<void> {
+  if (!getSettings) return
+  const s = getSettings()
+  if (!s.cloudSync.enabled) return
+  if (!s.cloudSync.uploadOnExit) return
+  if (s.cloudSync.provider !== "webdav" || !s.cloudSync.webdavUrl) return
+
+  try {
+    onBackupStatus?.("正在关闭时上传本地数据...")
+    await uploadDbBackup(
+      s.cloudSync.webdavUrl,
+      s.cloudSync.webdavUsername,
+      s.cloudSync.webdavPassword
+    )
+    onBackupStatus?.("关闭时上传完成")
+  } catch (e) {
+    console.warn("[doit] 关闭时上传失败:", e)
+    onBackupStatus?.("关闭时上传失败")
+  }
+}
+
 function canRun(): boolean {
   if (!getSettings) return false
   const s = getSettings()
