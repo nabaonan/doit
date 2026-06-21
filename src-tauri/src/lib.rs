@@ -3,7 +3,11 @@ use bytes::Bytes;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
-use tauri::Manager;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+use tauri::{Emitter, Manager};
+
+mod update_service;
 
 #[derive(Serialize, Deserialize)]
 pub struct FetchRequest {
@@ -668,12 +672,225 @@ fn prepare_clean_db_bytes(db: &PathBuf) -> Result<(Vec<u8>, usize), String> {
     result
 }
 
+// ============== 检查更新 ==============
+
+use crate::update_service::{
+    current_version, is_newer, pick_asset_for_platform, platform_key, DownloadProgress,
+    ReleaseInfo, UpdateCheckResult, GITHUB_RELEASES_API,
+};
+
+/// 全局下载状态（用于支持取消正在进行的下载）
+#[derive(Default)]
+pub struct DownloadState {
+    pub cancel_flag: Arc<AtomicBool>,
+}
+
+/// 命令 1：检查更新
+#[tauri::command]
+async fn check_for_update(app: tauri::AppHandle) -> Result<UpdateCheckResult, String> {
+    let client = make_client()?;
+    let (os, arch) = platform_key();
+    let current = current_version(&app);
+
+    eprintln!("[update] check_for_update: current={}, os={}, arch={}", current, os, arch);
+
+    let resp = client
+        .get(GITHUB_RELEASES_API)
+        .header("User-Agent", "Doit-App")
+        .header("Accept", "application/vnd.github+json")
+        .send()
+        .await
+        .map_err(|e| format!("请求 GitHub API 失败: {}", e))?;
+
+    if !resp.status().is_success() {
+        return Err(format!("GitHub API 返回 HTTP {}", resp.status().as_u16()));
+    }
+
+    let json: serde_json::Value = resp
+        .json()
+        .await
+        .map_err(|e| format!("解析响应失败: {}", e))?;
+
+    let tag = json["tag_name"].as_str().unwrap_or("").to_string();
+    let version = tag.trim_start_matches('v').to_string();
+
+    let release = ReleaseInfo {
+        tag_name: tag.clone(),
+        version: version.clone(),
+        name: json["name"].as_str().unwrap_or("").to_string(),
+        html_url: json["html_url"].as_str().unwrap_or("").to_string(),
+        published_at: json["published_at"].as_str().unwrap_or("").to_string(),
+        body: json["body"].as_str().unwrap_or("").to_string(),
+    };
+
+    let assets = json["assets"].as_array().cloned().unwrap_or_default();
+    let asset = pick_asset_for_platform(&assets, os, arch);
+
+    let has_update = asset.is_some() && is_newer(&release.version, &current);
+
+    if let Some(ref a) = asset {
+        eprintln!(
+            "[update] picked asset: {} ({} bytes), has_update={}",
+            a.name, a.size, has_update
+        );
+    } else {
+        eprintln!("[update] no matching asset for {}/{}", os, arch);
+    }
+
+    Ok(UpdateCheckResult {
+        current_version: current,
+        latest_version: version,
+        has_update,
+        release: Some(release),
+        asset,
+        platform: os.to_string(),
+        arch: arch.to_string(),
+    })
+}
+
+/// 命令 2：获取当前版本
+#[tauri::command]
+fn get_app_version(app: tauri::AppHandle) -> String {
+    current_version(&app)
+}
+
+/// 命令 3：流式下载 + 进度事件 + 完成后自动打开
+#[tauri::command]
+async fn download_and_install_update(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, DownloadState>,
+    url: String,
+    file_name: String,
+) -> Result<String, String> {
+    use futures_util::StreamExt;
+    use std::io::Write;
+
+    // 重置取消标志（新一次下载）
+    state.cancel_flag.store(false, Ordering::SeqCst);
+
+    let client = make_client()?;
+
+    // 1. 系统下载目录
+    let download_dir = app
+        .path()
+        .download_dir()
+        .map_err(|e| format!("无法获取下载目录: {}", e))?;
+    std::fs::create_dir_all(&download_dir)
+        .map_err(|e| format!("创建下载目录失败: {}", e))?;
+    let dest = download_dir.join(&file_name);
+
+    eprintln!("[update] 开始下载: {} -> {}", url, dest.display());
+
+    // 2. 发起请求
+    let resp = client
+        .get(&url)
+        .header("User-Agent", "Doit-App")
+        .send()
+        .await
+        .map_err(|e| format!("下载请求失败: {}", e))?;
+
+    let status = resp.status();
+    if !status.is_success() {
+        return Err(format!("下载失败: HTTP {}", status.as_u16()));
+    }
+
+    let total = resp.content_length().unwrap_or(0);
+    let mut stream = resp.bytes_stream();
+    let mut file = std::fs::File::create(&dest)
+        .map_err(|e| format!("创建文件失败: {}", e))?;
+
+    let mut downloaded: u64 = 0;
+    let mut last_emit = std::time::Instant::now();
+
+    while let Some(chunk_result) = stream.next().await {
+        // 每 200ms 段点检查一次取消标志（取消时立即返回）
+        if state.cancel_flag.load(Ordering::SeqCst) {
+            drop(file);
+            // 删除已下载的临时文件
+            let _ = std::fs::remove_file(&dest);
+            eprintln!("[update] 下载已取消: {}", dest.display());
+            return Err("下载已取消".to_string());
+        }
+
+        let chunk = chunk_result.map_err(|e| format!("读取下载流失败: {}", e))?;
+        file.write_all(&chunk).map_err(|e| format!("写入文件失败: {}", e))?;
+        downloaded += chunk.len() as u64;
+
+        // 每 200ms 推送一次进度，或下载完成时立即推送
+        if last_emit.elapsed().as_millis() >= 200 || downloaded == total {
+            let percentage = if total > 0 {
+                ((downloaded as f64 / total as f64) * 100.0).min(100.0) as u8
+            } else {
+                0
+            };
+            eprintln!(
+                "[update] download: {}/{} ({}%)",
+                downloaded, total, percentage
+            );
+            let _ = app.emit(
+                "update-download-progress",
+                DownloadProgress {
+                    bytes_downloaded: downloaded,
+                    total_bytes: total,
+                    percentage,
+                    file_name: file_name.clone(),
+                },
+            );
+            last_emit = std::time::Instant::now();
+        }
+    }
+
+    file.flush().map_err(|e| format!("刷新文件失败: {}", e))?;
+    drop(file);
+
+    eprintln!(
+        "[update] 下载完成: {} ({} bytes)",
+        dest.display(),
+        downloaded
+    );
+
+    // 3. 自动打开安装包
+    auto_open_installer(&dest);
+
+    Ok(format!("下载完成: {}", dest.display()))
+}
+
+/// 命令 4：取消正在进行的下载
+#[tauri::command]
+fn cancel_download(state: tauri::State<'_, DownloadState>) -> Result<(), String> {
+    state.cancel_flag.store(true, Ordering::SeqCst);
+    eprintln!("[update] 收到取消下载请求");
+    Ok(())
+}
+
+/// 跨平台打开安装包
+fn auto_open_installer(path: &std::path::Path) {
+    use std::process::Command;
+    let path_str = path.to_string_lossy().to_string();
+
+    #[cfg(target_os = "windows")]
+    {
+        let _ = Command::new("cmd")
+            .args(&["/C", "start", "", &path_str])
+            .spawn();
+    }
+    #[cfg(target_os = "macos")]
+    {
+        let _ = Command::new("open").arg(&path_str).spawn();
+    }
+    #[cfg(target_os = "linux")]
+    {
+        let _ = Command::new("xdg-open").arg(&path_str).spawn();
+    }
+}
+
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_sql::Builder::default().build())
+        .manage(DownloadState::default())
         .invoke_handler(tauri::generate_handler![
             greet,
             tauri_fetch,
@@ -683,7 +900,11 @@ pub fn run() {
             delete_webdav_backup,
             clean_export_db,
             diagnose_db_paths,
-            exit_app
+            exit_app,
+            check_for_update,
+            get_app_version,
+            download_and_install_update,
+            cancel_download
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

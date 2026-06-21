@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch, h, nextTick } from "vue";
-import { Modal } from "antdv-next";
-import { KeyOutlined, SunOutlined, MoonOutlined, MonitorOutlined, DownloadOutlined, UploadOutlined, DeleteOutlined, LockOutlined, ExclamationCircleOutlined, BgColorsOutlined, InteractionOutlined, CloudSyncOutlined, DatabaseOutlined } from "@antdv-next/icons";
+import { Modal, message, notification, Button, Space } from "antdv-next";
+import { KeyOutlined, SunOutlined, MoonOutlined, MonitorOutlined, DownloadOutlined, UploadOutlined, DeleteOutlined, LockOutlined, ExclamationCircleOutlined, BgColorsOutlined, InteractionOutlined, CloudSyncOutlined, DatabaseOutlined, InfoCircleOutlined, CheckCircleOutlined, CloudDownloadOutlined } from "@antdv-next/icons";
 import type { AppSettings } from "../types";
+import { checkForUpdate, downloadAndInstallUpdate, cancelDownload, getAppVersion, type UpdateCheckResult, type DownloadProgress } from "../services/updateService";
 
 const props = defineProps<{
   open: boolean;
@@ -18,6 +19,10 @@ const emit = defineEmits<{
   (e: "backup-now", settings: AppSettings): void;
 }>();
 
+// 使用 useNotification hook 而非静态方法，
+// 才能消费外层 ConfigProvider 提供的暗色主题 token
+const [notificationApi, notificationContextHolder] = notification.useNotification();
+
 const backupNowLoading = ref(false);
 
 const localSettings = ref<AppSettings>(JSON.parse(JSON.stringify(props.settings)));
@@ -31,7 +36,7 @@ const backupUnitOptions = [
 
 const cloudSyncEnabled = computed(() => localSettings.value.cloudSync.enabled);
 
-type CategoryKey = "appearance" | "interaction" | "sync" | "data";
+type CategoryKey = "appearance" | "interaction" | "sync" | "data" | "about";
 
 const activeCategory = ref<CategoryKey>("appearance");
 const contentRef = ref<HTMLElement | null>(null);
@@ -39,12 +44,14 @@ const sectionAppearance = ref<HTMLElement | null>(null);
 const sectionInteraction = ref<HTMLElement | null>(null);
 const sectionSync = ref<HTMLElement | null>(null);
 const sectionData = ref<HTMLElement | null>(null);
+const sectionAbout = ref<HTMLElement | null>(null);
 
 const categoryMenuItems = [
   { key: "appearance", label: "外观", icon: () => h(BgColorsOutlined) },
   { key: "interaction", label: "交互", icon: () => h(InteractionOutlined) },
   { key: "sync", label: "同步", icon: () => h(CloudSyncOutlined) },
   { key: "data", label: "数据", icon: () => h(DatabaseOutlined) },
+  { key: "about", label: "关于", icon: () => h(InfoCircleOutlined) },
 ];
 
 const menuTheme = {
@@ -84,6 +91,7 @@ const sectionRefs: Record<CategoryKey, { value: HTMLElement | null }> = {
   interaction: sectionInteraction,
   sync: sectionSync,
   data: sectionData,
+  about: sectionAbout,
 };
 
 function handleCategorySelect({ key }: { key: string }) {
@@ -97,7 +105,7 @@ function onContentScroll() {
   if (!contentRef.value) return;
   const containerTop = contentRef.value.getBoundingClientRect().top;
   let current: CategoryKey = "appearance";
-  for (const key of ["appearance", "interaction", "sync", "data"] as CategoryKey[]) {
+  for (const key of ["appearance", "interaction", "sync", "data", "about"] as CategoryKey[]) {
     const el = sectionRefs[key].value;
     if (!el) continue;
     const top = el.getBoundingClientRect().top;
@@ -227,6 +235,169 @@ async function handleBackupNow() {
     setTimeout(() => {
       backupNowLoading.value = false;
     }, 1500);
+  }
+}
+
+// ============== 检查更新 ==============
+
+const currentVersion = ref("?");
+const updateResult = ref<UpdateCheckResult | null>(null);
+const checking = ref(false);
+const downloadState = ref<"idle" | "downloading" | "done" | "error">("idle");
+const downloadProgress = ref<DownloadProgress>({
+  bytes_downloaded: 0,
+  total_bytes: 0,
+  percentage: 0,
+  file_name: "",
+});
+const downloadError = ref("");
+const cancelled = ref(false);  // 区分「用户主动取消」与「真实下载错误」
+
+// 弹框打开时自动加载当前版本
+watch(
+  () => props.open,
+  async (val) => {
+    if (val) {
+      try {
+        currentVersion.value = await getAppVersion();
+      } catch (e) {
+        currentVersion.value = "?";
+      }
+    }
+  }
+);
+
+async function handleCheckUpdate() {
+  if (checking.value) return;
+  checking.value = true;
+  try {
+    const result = await checkForUpdate();
+    updateResult.value = result;
+    // 重置下载状态
+    downloadState.value = "idle";
+    downloadProgress.value = {
+      bytes_downloaded: 0,
+      total_bytes: 0,
+      percentage: 0,
+      file_name: "",
+    };
+    downloadError.value = "";
+
+    if (result.has_update) {
+      // 有新版本：右上角通知，询问用户是否下载安装
+      showUpdateNotification(result);
+    } else {
+      // 已经是最新：弹 toast 提示
+      message.success(`已是最新版本 v${result.latest_version}`);
+    }
+  } catch (e: any) {
+    message.error(`检查更新失败: ${e?.toString() || e}`);
+  } finally {
+    checking.value = false;
+  }
+}
+
+/**
+ * 显示「有新版本」通知（右上角，含两个按钮 + 图标 + 暗色主题）
+ */
+function showUpdateNotification(result: UpdateCheckResult) {
+  const key = "update-notification";
+  // 先关闭之前的通知，避免堆积
+  notificationApi.destroy(key);
+
+  const actions = h(
+    Space,
+    { size: 8 },
+    () => [
+      h(
+        Button,
+        {
+          size: "small",
+          onClick: () => notificationApi.destroy(key),
+        },
+        { default: () => "取消" }
+      ),
+      h(
+        Button,
+        {
+          size: "small",
+          type: "primary",
+          onClick: () => {
+            notificationApi.destroy(key);
+            handleDownloadUpdate();
+          },
+        },
+        {
+          default: () => "下载并安装",
+          icon: () => h(CloudDownloadOutlined),
+        }
+      ),
+    ]
+  );
+
+  notificationApi.open({
+    key,
+    title: "发现新版本",
+    description: `最新版本 v${result.latest_version} 可用，是否下载并安装？`,
+    placement: "topRight",
+    duration: 0, // 不自动关闭
+    icon: h(CloudDownloadOutlined, { style: { color: "var(--primary)" } }),
+    actions,
+  });
+}
+
+async function handleDownloadUpdate() {
+  if (!updateResult.value?.asset) return;
+  cancelled.value = false;
+  downloadState.value = "downloading";
+  downloadProgress.value = {
+    bytes_downloaded: 0,
+    total_bytes: 0,
+    percentage: 0,
+    file_name: updateResult.value.asset.name,
+  };
+  downloadError.value = "";
+
+  try {
+    await downloadAndInstallUpdate(
+      updateResult.value.asset.browser_download_url,
+      updateResult.value.asset.name,
+      (progress) => {
+        downloadProgress.value = progress;
+      }
+    );
+    downloadState.value = "done";
+    message.success("已自动打开安装包");
+  } catch (e: any) {
+    if (cancelled.value) {
+      // 用户主动取消：静默重置到 idle，不显示错误
+      downloadState.value = "idle";
+      downloadProgress.value = {
+        bytes_downloaded: 0,
+        total_bytes: 0,
+        percentage: 0,
+        file_name: "",
+      };
+      downloadError.value = "";
+      message.info("已取消下载");
+    } else {
+      downloadState.value = "error";
+      downloadError.value = e?.toString() || "未知错误";
+      message.error(`下载失败: ${e?.toString() || e}`);
+    }
+  }
+}
+
+/**
+ * 停止当前下载
+ */
+async function handleStopDownload() {
+  if (downloadState.value !== "downloading") return;
+  cancelled.value = true;
+  try {
+    await cancelDownload();
+  } catch (e) {
+    console.error("取消请求失败:", e);
   }
 }
 </script>
@@ -569,7 +740,67 @@ async function handleBackupNow() {
             </a-button>
           </div>
         </section>
+
+        <a-divider size="small" class="!my-3" style="border-color: var(--border)">关于</a-divider>
+
+        <!-- 关于 -->
+        <section id="sec-about" ref="sectionAbout" class="space-y-4 pb-2">
+          <!-- 当前版本 + 检查更新按钮 + 下载进度（同一行右侧紧凑布局） -->
+          <div class="flex items-center justify-between">
+            <span class="text-sm text-[var(--muted-foreground)]">当前版本</span>
+            <div class="flex items-center gap-2">
+              <span class="text-sm font-mono">v{{ currentVersion }}</span>
+              <a-button
+                size="small"
+                :loading="checking"
+                :disabled="downloadState === 'downloading' || downloadState === 'done'"
+                @click="handleCheckUpdate"
+              >
+                {{ updateResult ? "重新检查" : "检查更新" }}
+              </a-button>
+
+              <!-- idle + 有更新：显示「下载并安装」按钮 -->
+              <a-button
+                v-if="downloadState === 'idle' && updateResult?.has_update && updateResult?.asset"
+                type="primary"
+                size="small"
+                @click="handleDownloadUpdate"
+              >
+                <DownloadOutlined />
+                下载并安装
+              </a-button>
+
+              <!-- downloading：显示百分比 + 停止按钮 -->
+              <template v-if="downloadState === 'downloading'">
+                <span class="text-xs text-[var(--muted-foreground)] tabular-nums">
+                  下载中 {{ downloadProgress.percentage }}%
+                </span>
+                <a-button size="small" @click="handleStopDownload">停止</a-button>
+              </template>
+
+              <!-- done：显示「✓ 已完成」 -->
+              <span
+                v-else-if="downloadState === 'done'"
+                class="text-xs text-green-500 flex items-center gap-1"
+              >
+                <CheckCircleOutlined />
+                已完成
+              </span>
+
+              <!-- error：显示错误文案（红色） -->
+              <span
+                v-else-if="downloadState === 'error'"
+                class="text-xs text-red-500 max-w-[200px] truncate"
+                :title="downloadError"
+              >
+                下载失败：{{ downloadError }}
+              </span>
+            </div>
+          </div>
+        </section>
       </div>
     </div>
+    <!-- 通知 Portal（必须放在组件树内才能继承 ConfigProvider 主题） -->
+    <notificationContextHolder />
   </a-modal>
 </template>
