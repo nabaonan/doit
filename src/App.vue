@@ -121,8 +121,29 @@ function toLocalDateStr(isoStr: string): string {
   return `${y}-${m}-${day}`;
 }
 
+function isFirstLevelCrossedOver(item: TodoItem): boolean {
+  if (item.parentId !== null) return false;
+  if (!item.completed || !item.completedAt) return false;
+  return toLocalDateStr(item.completedAt) !== todayStr.value;
+}
+
+function getFirstLevelAncestor(item: TodoItem): TodoItem {
+  let current = item;
+  while (current.parentId !== null) {
+    const parent = todos.value.find((x) => x.id === current.parentId);
+    if (!parent) break;
+    current = parent;
+  }
+  return current;
+}
+
 const activeTodos = computed(() => {
-  let filtered = todos.value.filter((t) => !t.completed || (t.completedAt && toLocalDateStr(t.completedAt) === todayStr.value));
+  let filtered = todos.value.filter((t) => {
+    if (!t.completed) return true;
+    if (t.completedAt && toLocalDateStr(t.completedAt) === todayStr.value) return true;
+    const ancestor = getFirstLevelAncestor(t);
+    return !isFirstLevelCrossedOver(ancestor);
+  });
   if (selectedCatId.value === "__none__") {
     filtered = filtered.filter((t) => t.catId === null);
   } else {
@@ -132,7 +153,11 @@ const activeTodos = computed(() => {
 });
 
 const completedTodos = computed(() =>
-  todos.value.filter((t) => t.completed && t.completedAt && toLocalDateStr(t.completedAt) !== todayStr.value)
+  todos.value.filter((t) => {
+    if (!t.completed) return false;
+    const ancestor = getFirstLevelAncestor(t);
+    return isFirstLevelCrossedOver(ancestor);
+  })
 );
 
 provide("settings", settings);
