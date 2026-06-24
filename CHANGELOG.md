@@ -1,5 +1,26 @@
 # Changelog
 
+## v0.1.45 (2026-06-23)
+
+### 重构
+
+- 优化任务过滤逻辑，按第一级任务状态处理跨天显示 (`31fd2f1` by @nabaonan)
+
+### 文档更新
+
+- 更新 Changelog for v0.1.44 (`f0ff6f0` by @github-actions[bot])
+
+### 构建/工具
+
+- release v0.1.45 (`45d5c01` by @nabaonan)
+
+### 其他变更
+
+- Merge branch 'main' of github.com:nabaonan/doit (`c9c3174` by @nabaonan)
+
+---
+
+
 ## v0.1.44 (2026-06-21)
 
 ### 新功能
