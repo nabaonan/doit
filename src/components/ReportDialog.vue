@@ -4,6 +4,7 @@ import { CopyOutlined, DownloadOutlined, FileTextOutlined } from "@antdv-next/ic
 import dayjs from "dayjs";
 import isoWeek from "dayjs/plugin/isoWeek";
 import { jsPDF } from "jspdf";
+import { marked } from "marked";
 import type { TodoItem, TodoItemNode, Category } from "../types";
 import { flatToNested } from "../types";
 
@@ -172,6 +173,8 @@ const reportText = computed(() => {
 
   return lines.join("\n");
 });
+
+const reportHtml = computed(() => marked.parse(reportText.value, { gfm: true }) as string);
 
 async function copyToClipboard() {
   try {
@@ -396,10 +399,9 @@ function onCancel() {
     </div>
 
     <div
-      class="bg-[var(--secondary)] rounded-lg p-4 mb-4 max-h-[300px] overflow-y-auto"
-    >
-      <pre class="text-sm text-[var(--foreground)] whitespace-pre-wrap font-mono leading-relaxed">{{ reportText }}</pre>
-    </div>
+      class="bg-[var(--secondary)] rounded-lg p-4 mb-4 max-h-[300px] overflow-y-auto text-sm text-[var(--foreground)] [&_h1]:text-base [&_h1]:font-bold [&_h1]:mb-2 [&_h1]:mt-1 [&_h2]:text-sm [&_h2]:font-semibold [&_h2]:mb-1 [&_h2]:mt-2 [&_p]:my-1 [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:my-1 [&_ol]:list-decimal [&_ol]:pl-5 [&_li]:my-0.5 [&_strong]:font-semibold [&_input[type=checkbox]]:mr-1.5 [&_input[type=checkbox]]:accent-[var(--primary)] [&_input[type=checkbox]]:size-3.5"
+      v-html="reportHtml"
+    ></div>
 
     <div class="flex flex-wrap gap-2">
       <a-button @click="copyToClipboard">
