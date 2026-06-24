@@ -240,7 +240,7 @@ onMounted(async () => {
 
   // 启动时拉取远程数据（后台异步、不阻塞 UI）
   if (settings.value.cloudSync.enabled && settings.value.cloudSync.fetchOnStartup) {
-    runRestoreOnStartup();
+    runRestoreOnStartup(() => settings.value);
   }
 
   // 注册关闭窗口时的上传监听（Tauri v2）

@@ -49,9 +49,11 @@ export function restartScheduler(settings: () => AppSettings) {
  * 启动时拉取远程（一次性，不进入定时调度）。
  * 由 App.vue onMounted 在 settings 加载完成后调用。
  */
-export async function runRestoreOnStartup(): Promise<void> {
-  if (!getSettings) return
-  const s = getSettings()
+export async function runRestoreOnStartup(
+  settingsGetter: () => AppSettings
+): Promise<void> {
+  if (!settingsGetter) return
+  const s = settingsGetter()
   if (!s.cloudSync.enabled) return
   if (!s.cloudSync.fetchOnStartup) return
   if (s.cloudSync.provider !== "webdav" || !s.cloudSync.webdavUrl) return
