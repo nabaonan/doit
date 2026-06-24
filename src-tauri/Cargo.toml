@@ -1,6 +1,6 @@
 [package]
 name = "doit"
-version = "0.1.39"
+version = "0.1.45"
 description = "简洁的桌面待办事项应用"
 authors = ["nabaonan"]
 edition = "2021"
@@ -18,6 +18,13 @@ tauri-build = { version = "2", features = [] }
 tauri = { version = "2", features = [] }
 tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"
+tauri-plugin-notification = "2"
 tauri-plugin-sql = { version = "2", features = ["sqlite"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "stream"] }
+base64 = "0.22"
+bytes = "1"
+rusqlite = { version = "0.31", features = ["bundled", "backup"] }
+regex = "1"
+futures-util = "0.3"

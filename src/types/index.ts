@@ -8,6 +8,7 @@ export interface TodoItem {
   tagId: string | null
   catId: string | null
   parentId: string | null
+  remindAt: string | null
 }
 
 export interface TodoItemNode {
@@ -20,6 +21,7 @@ export interface TodoItemNode {
   tagId: string | null
   catId: string | null
   parentId: string | null
+  remindAt: string | null
   children: TodoItemNode[]
 }
 
@@ -82,6 +84,14 @@ export interface Category {
 
 export type FontFamilyOption = "default" | "cartoon"
 
+export type BackupUnit = "minute" | "hour" | "day"
+
+export interface ScheduleConfig {
+  enabled: boolean
+  interval: number
+  unit: BackupUnit
+}
+
 export interface AppSettings {
   completionMode: "checkbox" | "longpress"
   longPressDuration: number
@@ -91,12 +101,17 @@ export interface AppSettings {
   addTodoShortcut: ShortcutConfig
   tags: Tag[]
   categories: Category[]
+  defaultCategoryId: string | null
   cloudSync: {
     enabled: boolean
-    provider: "webdav" | "local_folder"
+    provider: "webdav"
     webdavUrl: string
     webdavUsername: string
     webdavPassword: string
-    localSyncPath: string
+    fetchOnStartup: boolean
+    uploadOnExit: boolean
+    keepRecent: number
   }
+  autoBackup: ScheduleConfig
+  autoRestore: ScheduleConfig
 }

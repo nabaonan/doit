@@ -1,1 +1,1 @@
-{"default":{"identifier":"default","description":"默认权限配置","local":true,"windows":["main"],"permissions":["core:default","sql:default","dialog:default","fs:default",{"identifier":"fs:scope","allow":[{"path":"**"}]}]}}
+{"default":{"identifier":"default","description":"默认权限配置","local":true,"windows":["main"],"permissions":["core:default","sql:default","sql:allow-execute",{"identifier":"sql:allow-load","allow":[{"name":"sqlite:doit.db"}]},"dialog:default","fs:default","notification:default",{"identifier":"fs:scope","allow":[{"path":"**"}]}]}}

@@ -18,6 +18,8 @@ const emit = defineEmits<{
   (e: "set-tag", id: string, tagId: string | null): void;
   (e: "set-cat", id: string, catId: string | null): void;
   (e: "add-sub-todo", parentId: string, content: string): void;
+  (e: "set-reminder", id: string): void;
+  (e: "cancel-reminder", id: string): void;
 }>();
 
 const newTodoInput = ref("");
@@ -47,7 +49,9 @@ function mergeNested(existing: TodoItemNode[], incoming: TodoItemNode[]) {
         existingNode.completedAt = inc.completedAt;
         existingNode.order = inc.order;
         existingNode.tagId = inc.tagId;
+        existingNode.catId = inc.catId;
         existingNode.parentId = inc.parentId;
+        existingNode.remindAt = inc.remindAt;
         merge(existingNode.children, inc.children);
         list.push(existingNode);
         existingMap.delete(inc.id);
@@ -186,6 +190,12 @@ function saveEdit(content: string) {
   const id = editingId.value;
   if (!id) return;
   if (content.trim() === "") {
+    const todo = props.todos.find((t) => t.id === id);
+    if (todo && todo.parentId) {
+      editingId.value = null;
+      editContent.value = "";
+      return;
+    }
     emit("delete-todo", id);
   } else {
     emit("update-todo", id, content);
@@ -247,6 +257,8 @@ function onDeleteTodo(id: string) {
         :set-tag="onSetTag"
         :set-cat="onSetCat"
         :add-sub-todo="onAddSubTodo"
+        :set-reminder="(id: string) => emit('set-reminder', id)"
+        :cancel-reminder="(id: string) => emit('cancel-reminder', id)"
       />
     </div>
 

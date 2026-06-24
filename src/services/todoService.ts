@@ -1,25 +1,8 @@
 import type { TodoItem } from "../types"
 import { getDb } from "./db"
 
-const STORAGE_KEY = "doit_todos"
-
 export async function init(): Promise<void> {
   await getDb()
-}
-
-function getLocalTodos(): TodoItem[] {
-  try {
-    const data = localStorage.getItem(STORAGE_KEY)
-    if (!data) return []
-    const todos: TodoItem[] = JSON.parse(data)
-    return todos.map((t) => ({ ...t, catId: t.catId ?? null }))
-  } catch {
-    return []
-  }
-}
-
-function saveLocalTodos(todos: TodoItem[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(todos))
 }
 
 export function sortTodos(todos: TodoItem[]): TodoItem[] {
@@ -56,146 +39,127 @@ export function sortTodos(todos: TodoItem[]): TodoItem[] {
 
 export async function getAllTodos(): Promise<TodoItem[]> {
   const db = await getDb()
-  if (db) {
-    const rows = await (db as { select: <T>(sql: string) => Promise<T> }).select<Array<{
-      id: string
-      content: string
-      completed: number
-      created_at: string
-      completed_at: string | null
-      sort_order: number
-      tag_id: string | null
-      cat_id: string | null
-      parent_id: string | null
-    }>>("SELECT * FROM todos ORDER BY completed ASC, sort_order ASC")
-    return rows.map((row) => ({
-      id: row.id,
-      content: row.content,
-      completed: row.completed === 1,
-      createdAt: row.created_at,
-      completedAt: row.completed_at,
-      order: row.sort_order,
-      tagId: row.tag_id,
-      catId: row.cat_id,
-      parentId: row.parent_id,
-    }))
-  }
-  return sortTodos(getLocalTodos())
+  if (!db) return []
+  const rows = await (db as { select: <T>(sql: string, params?: unknown[]) => Promise<T[]> }).select<{
+    id: string
+    content: string
+    completed: number
+    created_at: string
+    completed_at: string | null
+    sort_order: number
+    tag_id: string | null
+    cat_id: string | null
+    parent_id: string | null
+    remind_at: string | null
+  }>("SELECT * FROM todos ORDER BY completed ASC, sort_order ASC")
+  const items: TodoItem[] = rows.map((row) => ({
+    id: row.id,
+    content: row.content,
+    completed: row.completed === 1,
+    createdAt: row.created_at,
+    completedAt: row.completed_at,
+    order: row.sort_order,
+    tagId: row.tag_id,
+    catId: row.cat_id,
+    parentId: row.parent_id,
+    remindAt: row.remind_at ?? null,
+  }))
+  return sortTodos(items)
 }
 
-export async function addTodo(item: TodoItem): Promise<void> {
+export async function addTodo(item: TodoItem): Promise<boolean> {
   const db = await getDb()
-  if (db) {
+  if (!db) {
+    console.warn("[doit] addTodo: db unavailable")
+    return false
+  }
+  try {
     await (db as { execute: (sql: string, params: unknown[]) => Promise<void> }).execute(
-      "INSERT INTO todos (id, content, completed, created_at, completed_at, sort_order, tag_id, cat_id, parent_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
-      [item.id, item.content, item.completed ? 1 : 0, item.createdAt, item.completedAt, item.order, item.tagId, item.catId, item.parentId]
+      "INSERT INTO todos (id, content, completed, created_at, completed_at, sort_order, tag_id, cat_id, parent_id, remind_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)",
+      [item.id, item.content, item.completed ? 1 : 0, item.createdAt, item.completedAt, item.order, item.tagId, item.catId, item.parentId, item.remindAt]
     )
-    return
-  }
-  const todos = getLocalTodos()
-  todos.push(item)
-  saveLocalTodos(todos)
-}
-
-export async function updateTodo(id: string, data: Partial<TodoItem>): Promise<void> {
-  const db = await getDb()
-  if (db) {
-    const setClauses: string[] = []
-    const params: unknown[] = []
-
-    if (data.content !== undefined) {
-      setClauses.push(`content = $${params.length + 1}`)
-      params.push(data.content)
-    }
-    if (data.completed !== undefined) {
-      setClauses.push(`completed = $${params.length + 1}`)
-      params.push(data.completed ? 1 : 0)
-    }
-    if (data.createdAt !== undefined) {
-      setClauses.push(`created_at = $${params.length + 1}`)
-      params.push(data.createdAt)
-    }
-    if (data.completedAt !== undefined) {
-      setClauses.push(`completed_at = $${params.length + 1}`)
-      params.push(data.completedAt)
-    }
-    if (data.order !== undefined) {
-      setClauses.push(`sort_order = $${params.length + 1}`)
-      params.push(data.order)
-    }
-    if (data.tagId !== undefined) {
-      setClauses.push(`tag_id = $${params.length + 1}`)
-      params.push(data.tagId)
-    }
-    if (data.catId !== undefined) {
-      setClauses.push(`cat_id = $${params.length + 1}`)
-      params.push(data.catId)
-    }
-    if (data.parentId !== undefined) {
-      setClauses.push(`parent_id = $${params.length + 1}`)
-      params.push(data.parentId)
-    }
-
-    if (setClauses.length === 0) return
-
-    params.push(id)
-    await (db as { execute: (sql: string, params: unknown[]) => Promise<void> }).execute(
-      `UPDATE todos SET ${setClauses.join(", ")} WHERE id = $${params.length}`,
-      params
-    )
-    return
-  }
-
-  const todos = getLocalTodos()
-  const idx = todos.findIndex((t) => t.id === id)
-  if (idx !== -1) {
-    todos[idx] = { ...todos[idx], ...data }
-    saveLocalTodos(todos)
+    console.log("[doit] addTodo success:", item.id)
+    return true
+  } catch (e) {
+    console.error("[doit] addTodo failed:", e, "item:", item)
+    return false
   }
 }
 
-export async function deleteTodo(id: string): Promise<void> {
+export async function updateTodo(id: string, data: Partial<TodoItem>): Promise<boolean> {
   const db = await getDb()
-  if (db) {
-    await (db as { execute: (sql: string, params: unknown[]) => Promise<void> }).execute("DELETE FROM todos WHERE parent_id = $1", [id])
-    await (db as { execute: (sql: string, params: unknown[]) => Promise<void> }).execute("DELETE FROM todos WHERE id = $1", [id])
-    return
+  if (!db) return false
+  const setClauses: string[] = []
+  const params: unknown[] = []
+
+  if (data.content !== undefined) {
+    setClauses.push(`content = $${params.length + 1}`)
+    params.push(data.content)
   }
-  const todos = getLocalTodos()
-  const idsToDelete = new Set<string>()
-  idsToDelete.add(id)
-  for (const t of todos) {
-    if (t.parentId === id) idsToDelete.add(t.id)
+  if (data.completed !== undefined) {
+    setClauses.push(`completed = $${params.length + 1}`)
+    params.push(data.completed ? 1 : 0)
   }
-  saveLocalTodos(todos.filter((t) => !idsToDelete.has(t.id)))
+  if (data.createdAt !== undefined) {
+    setClauses.push(`created_at = $${params.length + 1}`)
+    params.push(data.createdAt)
+  }
+  if (data.completedAt !== undefined) {
+    setClauses.push(`completed_at = $${params.length + 1}`)
+    params.push(data.completedAt)
+  }
+  if (data.order !== undefined) {
+    setClauses.push(`sort_order = $${params.length + 1}`)
+    params.push(data.order)
+  }
+  if (data.tagId !== undefined) {
+    setClauses.push(`tag_id = $${params.length + 1}`)
+    params.push(data.tagId)
+  }
+  if (data.catId !== undefined) {
+    setClauses.push(`cat_id = $${params.length + 1}`)
+    params.push(data.catId)
+  }
+  if (data.parentId !== undefined) {
+    setClauses.push(`parent_id = $${params.length + 1}`)
+    params.push(data.parentId)
+  }
+  if (data.remindAt !== undefined) {
+    setClauses.push(`remind_at = $${params.length + 1}`)
+    params.push(data.remindAt)
+  }
+
+  if (setClauses.length === 0) return true
+
+  params.push(id)
+  await (db as { execute: (sql: string, params: unknown[]) => Promise<void> }).execute(
+    `UPDATE todos SET ${setClauses.join(", ")} WHERE id = $${params.length}`,
+    params
+  )
+  return true
 }
 
-export async function clearAllTodos(): Promise<void> {
+export async function deleteTodo(id: string): Promise<boolean> {
   const db = await getDb()
-  if (db) {
-    await (db as { execute: (sql: string) => Promise<void> }).execute("DELETE FROM todos")
-    return
-  }
-  localStorage.removeItem(STORAGE_KEY)
+  if (!db) return false
+  await (db as { execute: (sql: string, params: unknown[]) => Promise<void> }).execute("DELETE FROM todos WHERE id = $1 OR parent_id = $1", [id])
+  return true
 }
 
-export async function reorderTodos(ids: string[]): Promise<void> {
+export async function clearAllTodos(): Promise<boolean> {
   const db = await getDb()
-  if (db) {
-    for (let i = 0; i < ids.length; i++) {
-      await (db as { execute: (sql: string, params: unknown[]) => Promise<void> }).execute("UPDATE todos SET sort_order = $1 WHERE id = $2", [i, ids[i]])
-    }
-    return
-  }
-  const todos = getLocalTodos()
-  const map = new Map(todos.map((t) => [t.id, t]))
-  const reordered: TodoItem[] = []
+  if (!db) return false
+  await (db as { execute: (sql: string) => Promise<void> }).execute("DELETE FROM todos")
+  // 同时清空分类和标签（它们存在 settings 表中）
+  await (db as { execute: (sql: string) => Promise<void> }).execute("DELETE FROM settings WHERE key IN ('categories', 'tags')")
+  return true
+}
+
+export async function reorderTodos(ids: string[]): Promise<boolean> {
+  const db = await getDb()
+  if (!db) return false
   for (let i = 0; i < ids.length; i++) {
-    const item = map.get(ids[i])
-    if (item) {
-      reordered.push({ ...item, order: i })
-    }
+    await (db as { execute: (sql: string, params: unknown[]) => Promise<void> }).execute("UPDATE todos SET sort_order = $1 WHERE id = $2", [i, ids[i]])
   }
-  const remaining = todos.filter((t) => !ids.includes(t.id))
-  saveLocalTodos([...reordered, ...remaining])
+  return true
 }

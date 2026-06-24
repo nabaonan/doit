@@ -1,5 +1,183 @@
 # Changelog
 
+## v0.1.45 (2026-06-23)
+
+### 重构
+
+- 优化任务过滤逻辑，按第一级任务状态处理跨天显示 (`31fd2f1` by @nabaonan)
+
+### 文档更新
+
+- 更新 Changelog for v0.1.44 (`f0ff6f0` by @github-actions[bot])
+
+### 构建/工具
+
+- release v0.1.45 (`45d5c01` by @nabaonan)
+
+### 其他变更
+
+- Merge branch 'main' of github.com:nabaonan/doit (`c9c3174` by @nabaonan)
+
+---
+
+
+## v0.1.44 (2026-06-21)
+
+### 新功能
+
+- 添加应用内自动更新功能 (`8ba0927` by @nabaonan)
+- 增加自动清理备份数量的设置 (`8d26e0f` by @nabaonan)
+- 增加关闭时候同步的提示 (`c4d5361` by @nabaonan)
+- 报告支持分类选择 (`7434ce3` by @nabaonan)
+- 增加默认分类 (`94aac3f` by @nabaonan)
+
+### Bug 修复
+
+- 消除警告 (`4d60309` by @nabaonan)
+
+### 重构
+
+- 优化默认分类应用逻辑 (`ac5c1ec` by @nabaonan)
+
+### 样式调整
+
+- 统一配置侧边菜单的样式参数 (`17e0f5e` by @nabaonan)
+- 优化WebDAV连接测试区域UI布局 (`efb11ad` by @nabaonan)
+
+### 文档更新
+
+- 更新 Changelog for v0.1.43 (`1b8a2e4` by @github-actions[bot])
+
+### 构建/工具
+
+- release v0.1.44 (`ea8f9c9` by @nabaonan)
+
+### 其他变更
+
+- Merge branch 'main' of github.com:nabaonan/doit (`afb90bd` by @nabaonan)
+
+---
+
+
+## v0.1.43 (2026-06-21)
+
+### 新功能
+
+- 独立标签设置，增加编辑标签的功能 (`894ad3e` by @nabaonan)
+
+### 重构
+
+- 提取通用删除逻辑到ColorLabelRow组件 (`4f06095` by @nabaonan)
+- 重构分类/标签管理弹窗，复用颜色标签组件 (`870455d` by @nabaonan)
+- 优化标签编辑交互与代码结构 (`e3e4428` by @nabaonan)
+- 重构设置弹窗为左右分栏布局，配置unplugin-vue-components实现antdv组件自动导入 (`fe7433f` by @nabaonan)
+
+### 文档更新
+
+- 更新 Changelog for v0.1.42 (`adb847f` by @github-actions[bot])
+
+### 构建/工具
+
+- release v0.1.43 (`6b7640c` by @内小子)
+- release v0.1.42 (`669d803` by @内小子)
+
+### 其他变更
+
+- Merge branch 'main' of github.com:nabaonan/doit (`d8695d5` by @内小子)
+
+---
+
+
+## v0.1.42 (2026-06-19)
+
+### 新功能
+
+- 增加嗲办事项倒计时显示 (`472f193` by @nabaonan)
+- 新增待办事项定时提醒功能 (`5df345a` by @nabaonan)
+
+### 样式调整
+
+- 优化倒计时样式 (`22d0cc9` by @nabaonan)
+
+### 文档更新
+
+- 更新 Changelog for v0.1.41 (`9c3be03` by @github-actions[bot])
+
+### 构建/工具
+
+- release v0.1.42 (`f1f5c07` by @nabaonan)
+
+---
+
+
+## v0.1.41 (2026-06-19)
+
+### 新功能
+
+- 增加定时任务备份和恢复 (`7839e5d` by @内小子)
+- 实现完整的WebDAV云同步功能 (`ace35b3` by @内小子)
+
+### Bug 修复
+
+- 修改ui顶部显示图标 (`dca3b51` by @内小子)
+- 修复webdav恢复的问题 (`7f8d822` by @内小子)
+- sqllite备份能力，优化数据库路径诊断与迁移 (`bae6b2a` by @内小子)
+- 修复排序问题并优化空内容子任务处理 (`f318d3e` by @内小子)
+
+### 重构
+
+- 重构数据库备份同步逻辑，修复重复表问题 (`1cd8f93` by @内小子)
+- 迁移数据库备份逻辑到Rust侧，优化上传下载流程 (`e75373d` by @内小子)
+- 重构云同步逻辑，改用直接备份SQLite数据库 (`bc351b0` by @内小子)
+
+### 样式调整
+
+- 优化样式 (`304ff65` by @内小子)
+- 替换全局字体引入为自定义font-face配置 (`b6052e0` by @内小子)
+
+### 文档更新
+
+- 去掉ip显示 (`5be421d` by @内小子)
+- 更新 Changelog for v0.1.40 (`4b75b5e` by @github-actions[bot])
+
+### 构建/工具
+
+- release v0.1.41 (`2da95e5` by @内小子)
+
+### 其他变更
+
+- Merge branch 'main' of github.com:nabaonan/doit (`30d0438` by @内小子)
+
+---
+
+
+## v0.1.40 (2026-06-17)
+
+### 新功能
+
+- 新增sql.js支持，实现浏览器端SQLite备份导入导出 (`c518609` by @内小子)
+
+### 重构
+
+- 合并重复的删除SQL语句 (`eb3bb34` by @内小子)
+- 调整DELETE语句处理逻辑顺序并提取重复代码 (`7c61ed0` by @内小子)
+- 移除tauriEnv.ts并重构数据存储逻辑 (`fcb4fca` by @内小子)
+
+### 文档更新
+
+- 更新 Changelog for v0.1.39 (`cec671f` by @github-actions[bot])
+
+### 构建/工具
+
+- release v0.1.40 (`01db94d` by @内小子)
+
+### 其他变更
+
+- Merge branch 'main' of github.com:nabaonan/doit (`52b3afc` by @内小子)
+
+---
+
+
 ## v0.1.39 (2026-06-16)
 
 ### Bug 修复

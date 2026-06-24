@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch, provide } from "vue";
+import { ref, computed, onMounted, onBeforeUnmount, onUnmounted, watch, provide, nextTick } from "vue";
 import { theme as antTheme } from "antdv-next";
 import zhCN from "antdv-next/locale/zh_CN";
 import { HappyProvider } from "@antdv-next/happy-work-theme";
@@ -13,11 +13,17 @@ import TimeView from "./components/TimeView.vue";
 import SettingsDialog from "./components/SettingsDialog.vue";
 import ReportDialog from "./components/ReportDialog.vue";
 import CategoryDialog from "./components/CategoryDialog.vue";
+import TagDialog from "./components/TagDialog.vue";
 import BackupDialog from "./components/BackupDialog.vue";
+import ReminderDialog from "./components/ReminderDialog.vue";
 import type { TodoItem, AppSettings, Category } from "./types";
 import { init as initTodos, getAllTodos, addTodo, updateTodo, deleteTodo, reorderTodos, sortTodos, clearAllTodos } from "./services/todoService";
 import { init as initSettings, getSettings, saveSettings } from "./services/settingsService";
 import { exportDatabase, importDatabase } from "./services/dbService";
+import { startScheduler, stopScheduler, setCallbacks as setSchedulerCallbacks, runRestoreOnStartup, runBackupOnExit, runBackup } from "./services/autoSyncService";
+import { loadReminders, scheduleReminder, cancelReminder as cancelReminderService, setNotificationCallback } from "./services/reminderService";
+import { message } from "antdv-next";
+import type { Tag } from "./types";
 
 const todos = ref<TodoItem[]>([]);
 const togglingIds = new Set<string>();
@@ -36,13 +42,26 @@ const settings = ref<AppSettings>({
   },
   tags: [],
   categories: [],
+  defaultCategoryId: null,
   cloudSync: {
     enabled: false,
-    provider: "local_folder",
+    provider: "webdav",
     webdavUrl: "",
     webdavUsername: "",
     webdavPassword: "",
-    localSyncPath: "",
+    fetchOnStartup: true,
+    uploadOnExit: true,
+    keepRecent: 3,
+  },
+  autoBackup: {
+    enabled: false,
+    interval: 30,
+    unit: "minute",
+  },
+  autoRestore: {
+    enabled: false,
+    interval: 30,
+    unit: "minute",
   },
 });
 const showSettings = ref(false);
@@ -51,6 +70,46 @@ const showBackup = ref(false);
 const currentView = ref<"today" | "time">("today");
 const selectedCatId = ref<string>("__none__");
 const showCategoryDialog = ref(false);
+const showTagDialog = ref(false);
+const reminderTodoId = ref<string | null>(null);
+const showReminder = ref(false);
+// 关闭上传进行中标志，避免重复拦截或递归
+const exiting = ref(false);
+// 关闭时的 loading 遮罩显示标志
+const exitLoading = ref(false);
+
+// 跟踪 settings 加载状态 + 默认分类是否已应用，避免覆盖用户手动选择
+let settingsLoaded = false;
+let defaultApplied = false;
+
+function applyDefaultCategory() {
+  if (defaultApplied) return;
+  const defaultId = settings.value.defaultCategoryId;
+  if (!defaultId) {
+    defaultApplied = true;
+    return;
+  }
+  const exists = (settings.value.categories || []).some((c) => c.id === defaultId);
+  if (exists) {
+    selectedCatId.value = defaultId;
+  }
+  defaultApplied = true;
+}
+
+// 监听 defaultCategoryId 变化（仅在 settings 加载完成后才应用）
+watch(
+  () => [settings.value.defaultCategoryId, settings.value.categories] as const,
+  () => {
+    if (!settingsLoaded) return;
+    if (defaultApplied) return;
+    applyDefaultCategory();
+  }
+);
+
+const reminderTodo = computed(() => {
+  if (!reminderTodoId.value) return null;
+  return todos.value.find((t) => t.id === reminderTodoId.value) ?? null;
+});
 
 const todayStr = computed(() => dayjs().format("YYYY-MM-DD"));
 
@@ -62,8 +121,29 @@ function toLocalDateStr(isoStr: string): string {
   return `${y}-${m}-${day}`;
 }
 
+function isFirstLevelCrossedOver(item: TodoItem): boolean {
+  if (item.parentId !== null) return false;
+  if (!item.completed || !item.completedAt) return false;
+  return toLocalDateStr(item.completedAt) !== todayStr.value;
+}
+
+function getFirstLevelAncestor(item: TodoItem): TodoItem {
+  let current = item;
+  while (current.parentId !== null) {
+    const parent = todos.value.find((x) => x.id === current.parentId);
+    if (!parent) break;
+    current = parent;
+  }
+  return current;
+}
+
 const activeTodos = computed(() => {
-  let filtered = todos.value.filter((t) => !t.completed || (t.completedAt && toLocalDateStr(t.completedAt) === todayStr.value));
+  let filtered = todos.value.filter((t) => {
+    if (!t.completed) return true;
+    if (t.completedAt && toLocalDateStr(t.completedAt) === todayStr.value) return true;
+    const ancestor = getFirstLevelAncestor(t);
+    return !isFirstLevelCrossedOver(ancestor);
+  });
   if (selectedCatId.value === "__none__") {
     filtered = filtered.filter((t) => t.catId === null);
   } else {
@@ -73,7 +153,11 @@ const activeTodos = computed(() => {
 });
 
 const completedTodos = computed(() =>
-  todos.value.filter((t) => t.completed && t.completedAt && toLocalDateStr(t.completedAt) !== todayStr.value)
+  todos.value.filter((t) => {
+    if (!t.completed) return false;
+    const ancestor = getFirstLevelAncestor(t);
+    return isFirstLevelCrossedOver(ancestor);
+  })
 );
 
 provide("settings", settings);
@@ -114,12 +198,158 @@ function startSystemThemeTimer() {
 }
 
 onMounted(async () => {
-  await initTodos();
-  await initSettings();
-  todos.value = await getAllTodos();
-  settings.value = await getSettings();
+  try {
+    await initTodos();
+    await initSettings();
+    todos.value = await getAllTodos();
+    settings.value = await getSettings();
+    console.log(
+      "[doit] settings loaded, defaultCategoryId:",
+      settings.value.defaultCategoryId
+    );
+  } catch (e) {
+    console.warn("[doit] DB unavailable:", e);
+  }
   applyTheme(settings.value.theme);
   startSystemThemeTimer();
+
+  // 应用默认分类（settings 已加载完成）
+  settingsLoaded = true;
+  applyDefaultCategory();
+
+  // 启动自动备份/恢复调度器
+  setSchedulerCallbacks({
+    onBackupStatus: (s) => {
+      if (s === "自动备份完成" || s === "关闭时上传完成") message.success(s);
+      else if (s === "自动备份失败" || s === "关闭时上传失败") message.error(s);
+    },
+    onRestoreStatus: (s) => {
+      if (s === "自动恢复完成" || s === "云端数据拉取成功") message.success(s);
+      else if (s === "自动恢复失败" || s === "启动拉取失败") message.error(s);
+    },
+    onDataChanged: async () => {
+      // 自动恢复后重新加载 todos 和 settings
+      try {
+        todos.value = await getAllTodos();
+        settings.value = await getSettings();
+      } catch (e) {
+        console.warn("[doit] 刷新数据失败:", e);
+      }
+    },
+  });
+
+  // 启动时拉取远程数据（后台异步、不阻塞 UI）
+  if (settings.value.cloudSync.enabled && settings.value.cloudSync.fetchOnStartup) {
+    runRestoreOnStartup();
+  }
+
+  // 注册关闭窗口时的上传监听（Tauri v2）
+  const tauri = (window as unknown as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__
+  if (tauri) {
+    try {
+      const { getCurrentWindow } = await import("@tauri-apps/api/window")
+      const { invoke } = await import("@tauri-apps/api/core")
+      const win = getCurrentWindow()
+      const unlisten = await win.onCloseRequested(async (event) => {
+        // ① 已在退出流程中：拦截递归点击，避免窗口在上传中途被原生销毁
+        if (exiting.value) {
+          event.preventDefault()
+          return
+        }
+
+        // ② 动态判断：是否需要在关闭时上传
+        //    检查顺序：cloudSync.enabled → uploadOnExit → provider/url
+        const cfg = settings.value.cloudSync
+        const needUpload =
+          cfg.enabled &&
+          cfg.uploadOnExit &&
+          cfg.provider === "webdav" &&
+          !!cfg.webdavUrl
+
+        // ③ 不管是否需要上传，都先 preventDefault 拦截原生关闭，
+        //    由我们显式调用 invoke("exit_app") 退出进程。
+        //    这样可以避免依赖 Tauri v2 onCloseRequested 内部在 handler
+        //    未 preventDefault 时自动 destroy() 的不可靠行为。
+        event.preventDefault()
+        exiting.value = true
+
+        // ④ 不需要上传：直接退出（同步分支，loading 不显示）
+        if (!needUpload) {
+          try {
+            await invoke("exit_app")
+          } catch (e) {
+            console.warn("[doit] exit_app 失败，回退到 win.destroy:", e)
+            try {
+              await win.destroy()
+            } catch (e2) {
+              console.error("[doit] win.destroy 也失败:", e2)
+            }
+          }
+          return
+        }
+
+        // ⑤ 需要上传：显示 loading，等待遮罩渲染，再上传
+        exitLoading.value = true
+        await nextTick()
+        try {
+          await runBackupOnExit()
+        } catch (e) {
+          console.warn("[doit] 关闭时上传异常:", e)
+        } finally {
+          try {
+            await invoke("exit_app")
+          } catch (e) {
+            console.warn("[doit] exit_app 失败，回退到 win.destroy:", e)
+            try {
+              await win.destroy()
+            } catch (e2) {
+              console.error("[doit] win.destroy 也失败，无法关闭窗口:", e2)
+            }
+          }
+        }
+      })
+      onBeforeUnmount(() => {
+        unlisten()
+      })
+    } catch (e) {
+      console.warn("[doit] 注册关闭上传监听失败:", e)
+    }
+  }
+  setNotificationCallback(async (todoId: string, content: string) => {
+    cancelReminderService(todoId);
+    const todo = todos.value.find((t) => t.id === todoId);
+    if (todo) {
+      todo.remindAt = null;
+      await updateTodo(todoId, { remindAt: null } as any);
+    }
+
+    const isTauri = !!(window as unknown as { __TAURI__?: unknown }).__TAURI__;
+    if (isTauri) {
+      const { sendNotification, isPermissionGranted, requestPermission } = await import("@tauri-apps/plugin-notification");
+      let granted = await isPermissionGranted();
+      if (!granted) {
+        const permission = await requestPermission();
+        granted = permission === "granted";
+      }
+      if (granted) {
+        sendNotification({ title: "待办提醒", body: content, icon: "icons/icon.png" });
+      }
+    } else if ("Notification" in window) {
+      const icon = "/icon.png";
+      if (Notification.permission === "granted") {
+        new Notification("待办提醒", { body: content, icon });
+      } else if (Notification.permission !== "denied") {
+        const permission = await Notification.requestPermission();
+        if (permission === "granted") {
+          new Notification("待办提醒", { body: content, icon });
+        }
+      }
+    }
+  });
+  if (settings.value.cloudSync.enabled) {
+    startScheduler(() => settings.value);
+  }
+  loadReminders(todos.value);
 });
 
 onUnmounted(() => {
@@ -127,7 +357,25 @@ onUnmounted(() => {
     clearInterval(systemThemeTimer);
     systemThemeTimer = null;
   }
+  stopScheduler();
 });
+
+// 监听 settings 变化，启停调度器
+watch(
+  () => [
+    settings.value.cloudSync.enabled,
+    settings.value.cloudSync.webdavUrl,
+    JSON.stringify(settings.value.autoBackup),
+    JSON.stringify(settings.value.autoRestore),
+  ],
+  () => {
+    if (settings.value.cloudSync.enabled) {
+      startScheduler(() => settings.value);
+    } else {
+      stopScheduler();
+    }
+  }
+);
 
 watch(() => settings.value.theme, (newTheme) => {
   applyTheme(newTheme);
@@ -137,12 +385,22 @@ function handleSelectCat(catId: string | null) {
   selectedCatId.value = catId ?? "__none__";
 }
 
-async function handleSaveCategories(categories: Category[]) {
+async function handleSaveCategories(payload: {
+  categories: Category[];
+  defaultCategoryId: string | null;
+}) {
   const oldIds = new Set(settings.value.categories.map((c) => c.id));
-  const newIds = new Set(categories.map((c) => c.id));
+  const newIds = new Set(payload.categories.map((c) => c.id));
   const removedIds = [...oldIds].filter((id) => !newIds.has(id));
-  settings.value.categories = categories;
-  await saveSettings(settings.value);
+  settings.value.categories = payload.categories;
+  settings.value.defaultCategoryId = payload.defaultCategoryId;
+  try {
+    await saveSettings(settings.value);
+  } catch {
+    try {
+      settings.value = await getSettings();
+    } catch {}
+  }
   if (removedIds.length > 0) {
     for (const todo of todos.value) {
       if (todo.catId && removedIds.includes(todo.catId)) {
@@ -150,8 +408,45 @@ async function handleSaveCategories(categories: Category[]) {
       }
     }
     todos.value = await getAllTodos();
+    // 若当前选中的就是被删除的分类，且没有新的默认承接，降级为「未分类」
+    if (
+      selectedCatId.value !== "__none__" &&
+      removedIds.includes(selectedCatId.value) &&
+      payload.defaultCategoryId !== selectedCatId.value
+    ) {
+      selectedCatId.value = "__none__";
+    }
+  } else if (
+    payload.defaultCategoryId &&
+    payload.defaultCategoryId !== selectedCatId.value
+  ) {
+    // 没删除任何分类但用户改了默认，立即应用（更直观的反馈）
+    selectedCatId.value = payload.defaultCategoryId;
   }
   showCategoryDialog.value = false;
+}
+
+async function handleSaveTags(tags: Tag[]) {
+  const oldIds = new Set((settings.value.tags || []).map((t) => t.id));
+  const newIds = new Set(tags.map((t) => t.id));
+  const removedIds = [...oldIds].filter((id) => !newIds.has(id));
+  settings.value.tags = tags;
+  try {
+    await saveSettings(settings.value);
+  } catch {
+    try {
+      settings.value = await getSettings();
+    } catch {}
+  }
+  if (removedIds.length > 0) {
+    for (const todo of todos.value) {
+      if (todo.tagId && removedIds.includes(todo.tagId)) {
+        await updateTodo(todo.id, { tagId: null });
+      }
+    }
+    todos.value = await getAllTodos();
+  }
+  showTagDialog.value = false;
 }
 
 async function handleAddTodo(content: string) {
@@ -165,29 +460,54 @@ async function handleAddTodo(content: string) {
     tagId: null,
     catId: selectedCatId.value === "__none__" ? null : selectedCatId.value,
     parentId: null,
+    remindAt: null,
   };
-  await addTodo(newTodo);
-  todos.value = await getAllTodos();
+  const ok = await addTodo(newTodo);
+  if (ok) {
+    todos.value = await getAllTodos();
+  } else {
+    // DB unavailable (e.g. browser dev mode) — keep in memory
+    todos.value = sortTodos([...todos.value, newTodo]);
+  }
 }
 
 async function handleUpdateTodo(id: string, content: string) {
-  await updateTodo(id, { content });
-  todos.value = await getAllTodos();
+  const ok = await updateTodo(id, { content });
+  if (ok) {
+    todos.value = await getAllTodos();
+  } else {
+    const todo = todos.value.find((t) => t.id === id);
+    if (todo) todo.content = content;
+  }
 }
 
 async function handleSetTag(id: string, tagId: string | null) {
-  await updateTodo(id, { tagId });
-  todos.value = await getAllTodos();
+  const ok = await updateTodo(id, { tagId });
+  if (ok) {
+    todos.value = await getAllTodos();
+  } else {
+    const todo = todos.value.find((t) => t.id === id);
+    if (todo) todo.tagId = tagId;
+  }
 }
 
 async function handleSetCat(id: string, catId: string | null) {
   const idsToUpdate = [id];
   const childIds = getDescendantIds(id);
   idsToUpdate.push(...childIds);
+  let allOk = true;
   for (const todoId of idsToUpdate) {
-    await updateTodo(todoId, { catId });
+    const ok = await updateTodo(todoId, { catId });
+    if (!ok) allOk = false;
   }
-  todos.value = await getAllTodos();
+  if (allOk) {
+    todos.value = await getAllTodos();
+  } else {
+    for (const todoId of idsToUpdate) {
+      const todo = todos.value.find((t) => t.id === todoId);
+      if (todo) todo.catId = catId;
+    }
+  }
 }
 
 function getDescendantIds(parentId: string): string[] {
@@ -211,6 +531,9 @@ async function handleToggleComplete(id: string) {
   }
   togglingIds.add(id);
   const newCompleted = !todo.completed;
+  if (newCompleted && todo.remindAt) {
+    cancelReminderService(id);
+  }
   todo.completed = newCompleted;
   todo.completedAt = newCompleted ? new Date().toISOString() : null;
   try {
@@ -247,18 +570,26 @@ async function syncParentCompletion(parentId: string) {
 
 async function handleReorder(ids: string[], parentIds?: Record<string, string | null>) {
   const oldParentIds = new Map<string, string | null>();
+  let allOk = true;
 
   if (parentIds) {
     for (const [id, newParentId] of Object.entries(parentIds)) {
       const todo = todos.value.find((t) => t.id === id);
       oldParentIds.set(id, todo?.parentId ?? null);
-      await updateTodo(id, { parentId: newParentId });
+      const ok = await updateTodo(id, { parentId: newParentId });
+      if (!ok) allOk = false;
     }
   }
-  await reorderTodos(ids);
-  todos.value = await getAllTodos();
+  const reorderOk = await reorderTodos(ids);
+  if (!reorderOk) allOk = false;
 
-  if (parentIds) {
+  if (allOk) {
+    todos.value = await getAllTodos();
+  } else {
+    todos.value = sortTodos(todos.value);
+  }
+
+  if (parentIds && allOk) {
     const affectedParents = new Set<string>();
     for (const [id, newParentId] of Object.entries(parentIds)) {
       const oldParentId = oldParentIds.get(id);
@@ -284,25 +615,63 @@ async function handleAddSubTodo(parentId: string, content: string) {
     tagId: null,
     catId: parent?.catId ?? null,
     parentId,
+    remindAt: null,
   };
-  await addTodo(newTodo);
-  todos.value = await getAllTodos();
+  const ok = await addTodo(newTodo);
+  if (ok) {
+    todos.value = await getAllTodos();
+  } else {
+    todos.value = sortTodos([...todos.value, newTodo]);
+  }
 }
 
 async function handleDeleteTodo(id: string) {
-  await deleteTodo(id);
-  todos.value = await getAllTodos();
+  cancelReminderService(id);
+  const ok = await deleteTodo(id);
+  if (ok) {
+    todos.value = await getAllTodos();
+  } else {
+    const idsToDelete = new Set([id]);
+    for (const t of todos.value) {
+      if (t.parentId === id) idsToDelete.add(t.id);
+    }
+    todos.value = sortTodos(todos.value.filter((t) => !idsToDelete.has(t.id)));
+  }
 }
 
 async function handleSaveSettings(newSettings: AppSettings) {
   await saveSettings(newSettings);
   settings.value = newSettings;
-  showSettings.value = false;
+  // 不在此处关闭弹框，由 SettingsDialog 自身的 onClose 控制
+  // 否则实时保存会立即关闭弹框
+}
+
+function handleBackupNow(newSettings?: AppSettings) {
+  // 收到子组件传过来的最新设置（含未保存的 keepRecent 等）
+  if (newSettings) {
+    // 1) 立即同步更新内存（同步），保证后续 runBackup 读到的是新值
+    settings.value = newSettings
+    // 2) 后台持久化到 DB（不 await，避免阻塞上传）
+    void saveSettings(newSettings)
+  }
+  // 3) 立即触发一次备份 + 自动清理（Rust 端处理）
+  //    runBackup 内部读最新的 settings.cloudSync.keepRecent
+  void runBackup();
 }
 
 async function handleClearData() {
-  await clearAllTodos();
-  todos.value = await getAllTodos();
+  const ok = await clearAllTodos();
+  if (ok) {
+    todos.value = await getAllTodos();
+    // 同步清空 settings 状态中的 categories 和 tags
+    settings.value = {
+      ...settings.value,
+      categories: [],
+      tags: [],
+    };
+  } else {
+    todos.value = [];
+  }
 }
 
 async function handleExportDb() {
@@ -323,15 +692,44 @@ async function handleImportDb() {
   }
 }
 
-async function handleRestoreBackup(data: { todos: TodoItem[]; settings: AppSettings }) {
-  await clearAllTodos();
-  for (const todo of data.todos) {
-    await addTodo(todo);
-  }
-  await saveSettings(data.settings);
+async function handleDataChanged() {
   todos.value = await getAllTodos();
   settings.value = await getSettings();
   showBackup.value = false;
+}
+
+function handleSetReminder(id: string) {
+  reminderTodoId.value = id;
+  showReminder.value = true;
+}
+
+async function handleSetReminderConfirm(remindAt: string) {
+  const id = reminderTodoId.value;
+  if (!id) return;
+  cancelReminderService(id);
+  const ok = await updateTodo(id, { remindAt });
+  if (ok) {
+    todos.value = await getAllTodos();
+  } else {
+    const todo = todos.value.find((t) => t.id === id);
+    if (todo) todo.remindAt = remindAt;
+  }
+  scheduleReminder(id, remindAt, todos.value.find((t) => t.id === id)?.content ?? "");
+  reminderTodoId.value = null;
+  showReminder.value = false;
+}
+
+async function handleCancelReminder(id: string) {
+  cancelReminderService(id);
+  const ok = await updateTodo(id, { remindAt: null } as any);
+  if (ok) {
+    todos.value = await getAllTodos();
+  } else {
+    const todo = todos.value.find((t) => t.id === id);
+    if (todo) todo.remindAt = null;
+  }
+  reminderTodoId.value = null;
+  showReminder.value = false;
 }
 </script>
 
@@ -349,6 +747,7 @@ async function handleRestoreBackup(data: { todos: TodoItem[]; settings: AppSetti
             @update:view="(v) => currentView = v as 'today' | 'time'"
             @select-cat="handleSelectCat"
             @manage-categories="showCategoryDialog = true"
+            @manage-tags="showTagDialog = true"
           />
           <TodoList
             v-if="currentView === 'today'"
@@ -362,6 +761,8 @@ async function handleRestoreBackup(data: { todos: TodoItem[]; settings: AppSetti
             @set-tag="handleSetTag"
             @set-cat="handleSetCat"
             @add-sub-todo="handleAddSubTodo"
+            @set-reminder="handleSetReminder"
+            @cancel-reminder="handleCancelReminder"
           />
           <TimeView
             v-if="currentView === 'time'"
@@ -374,23 +775,53 @@ async function handleRestoreBackup(data: { todos: TodoItem[]; settings: AppSetti
             @clear-data="handleClearData"
             @export-db="handleExportDb"
             @import-db="handleImportDb"
+            @backup-now="handleBackupNow"
           />
           <ReportDialog
             v-model:open="showReport"
             :todos="todos"
+            :categories="settings.categories"
           />
           <CategoryDialog
             v-model:open="showCategoryDialog"
             :categories="settings.categories"
+            :default-category-id="settings.defaultCategoryId"
             :todos="todos"
             @save="handleSaveCategories"
           />
+          <TagDialog
+            v-model:open="showTagDialog"
+            :tags="settings.tags || []"
+            @save="handleSaveTags"
+          />
+          <!-- 同步状态栏 -->
           <BackupDialog
             v-model:open="showBackup"
-            :todos="todos"
             :settings="settings"
-            @restore="handleRestoreBackup"
+            @data-changed="handleDataChanged"
           />
+          <ReminderDialog
+            v-if="reminderTodo"
+            v-model:open="showReminder"
+            :todo-id="reminderTodo.id"
+            :todo-content="reminderTodo.content"
+            :current-remind-at="reminderTodo.remindAt"
+            @confirm="handleSetReminderConfirm"
+            @cancel-reminder="() => handleCancelReminder(reminderTodo!.id)"
+            @update:open="(val) => { if (!val) { showReminder = false; reminderTodoId = null } }"
+          />
+        </div>
+
+        <!-- 关闭时的上传 loading 遮罩，覆盖整个窗口（含所有 dialog） -->
+        <div
+          v-if="exitLoading"
+          class="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 backdrop-blur-sm"
+        >
+          <div class="bg-[var(--background)] border border-[var(--border)] rounded-xl p-6 shadow-2xl flex flex-col items-center gap-3 min-w-[260px]">
+            <a-spin size="large" />
+            <div class="text-sm font-medium">正在关闭</div>
+            <div class="text-xs text-[var(--muted-foreground)]">正在上传本地数据到云端...</div>
+          </div>
         </div>
       </a-app>
     </a-config-provider>
