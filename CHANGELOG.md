@@ -1,5 +1,34 @@
 # Changelog
 
+## v0.1.46 (2026-06-24)
+
+### 新功能
+
+- 增加热力图和环形统计图 (`f6c2e63` by @nabaonan)
+- 实现报告预览框Markdown渲染 (`a421689` by @nabaonan)
+
+### Bug 修复
+
+- 修复周报没有显示未完成的项目 (`2c204a5` by @nabaonan)
+- 修复没有启动加载数据的问题 (`79cbafa` by @nabaonan)
+
+### 文档更新
+
+- 增加截图 (`9169652` by @nabaonan)
+- 更新 Changelog for v0.1.45 (`c702099` by @github-actions[bot])
+
+### 构建/工具
+
+- release v0.1.46 (`35096f4` by @nabaonan)
+
+### 其他变更
+
+- Merge branch 'main' of github.com:nabaonan/doit (`4c25ecc` by @nabaonan)
+- Merge branch 'main' of github.com:nabaonan/doit (`10ddf26` by @nabaonan)
+
+---
+
+
 ## v0.1.45 (2026-06-23)
 
 ### 重构
