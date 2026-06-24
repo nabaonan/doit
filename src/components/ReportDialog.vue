@@ -43,9 +43,13 @@ const filteredTodos = computed(() => {
   if (reportType.value === "daily") {
     list = list.filter((t) => dayjs(t.createdAt).format("YYYY-MM-DD") === todayStr.value);
   } else {
+    const inWeek = (d: string) => {
+      const day = dayjs(d).format("YYYY-MM-DD");
+      return day >= weekRange.value.start && day <= weekRange.value.end;
+    };
     list = list.filter((t) => {
-      const d = dayjs(t.createdAt).format("YYYY-MM-DD");
-      return d >= weekRange.value.start && d <= weekRange.value.end;
+      if (!t.completed) return true;
+      return inWeek(t.createdAt) || (!!t.completedAt && inWeek(t.completedAt));
     });
   }
   if (catFilter.value === "__all__") {
