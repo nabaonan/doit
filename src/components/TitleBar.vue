@@ -76,6 +76,7 @@ function handleManageTags() {
         :options="[
           { label: '今日待办', value: 'today' },
           { label: '按时间查看', value: 'time' },
+          { label: '统计', value: 'heatmap' },
         ]"
         size="small"
         @change="onViewChange"

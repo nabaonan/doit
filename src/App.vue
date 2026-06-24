@@ -67,7 +67,7 @@ const settings = ref<AppSettings>({
 const showSettings = ref(false);
 const showReport = ref(false);
 const showBackup = ref(false);
-const currentView = ref<"today" | "time">("today");
+const currentView = ref<"today" | "time" | "heatmap">("today");
 const selectedCatId = ref<string>("__none__");
 const showCategoryDialog = ref(false);
 const showTagDialog = ref(false);
@@ -767,6 +767,10 @@ async function handleCancelReminder(id: string) {
           <TimeView
             v-if="currentView === 'time'"
             :todos="completedTodos"
+          />
+          <StatisticsView
+            v-if="currentView === 'heatmap'"
+            :todos="todos"
           />
           <SettingsDialog
             v-model:open="showSettings"

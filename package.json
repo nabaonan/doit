@@ -34,8 +34,10 @@
     "marked": "^15.0.0",
     "sortablejs": "^1.15.7",
     "sql.js": "^1.14.1",
+    "tippy.js": "^6.3.7",
     "vue": "^3.5.34",
     "vue-draggable-plus": "^0.6.1",
+    "vue3-calendar-heatmap": "^2.0.5",
     "vuedraggable": "^4.1.0"
   },
   "devDependencies": {
