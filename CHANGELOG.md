@@ -1,5 +1,23 @@
 # Changelog
 
+## v0.1.47 (2026-07-02)
+
+### 新功能
+
+- 增加时间轴视图展示 (`3e32a53` by @nabaonan)
+- 为父任务添加展开/收起功能 (`96f3e6b` by @nabaonan)
+
+### 文档更新
+
+- 更新 Changelog for v0.1.46 (`3c1369d` by @github-actions[bot])
+
+### 构建/工具
+
+- release v0.1.47 (`59c801b` by @nabaonan)
+
+---
+
+
 ## v0.1.46 (2026-06-24)
 
 ### 新功能
