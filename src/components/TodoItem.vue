@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch, h, nextTick, onUnmounted } from "vue";
-import { EditOutlined, DeleteOutlined, TagOutlined, PlusOutlined, FolderOutlined, ClockCircleOutlined, CheckCircleFilled } from "@antdv-next/icons";
+import { EditOutlined, DeleteOutlined, TagOutlined, PlusOutlined, FolderOutlined, ClockCircleOutlined, CheckCircleFilled, CaretRightOutlined } from "@antdv-next/icons";
 import type { MenuItemType } from "antdv-next";
 import dayjs from "dayjs";
 import type { TodoItem as TodoItemType, AppSettings } from "../types";
@@ -14,6 +14,7 @@ const props = defineProps<{
   hasChildren?: boolean;
   isSubTask?: boolean;
   depth?: number;
+  collapsed?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -27,6 +28,7 @@ const emit = defineEmits<{
   (e: "add-sub-todo", content: string): void;
   (e: "set-reminder"): void;
   (e: "cancel-reminder"): void;
+  (e: "toggle-collapse"): void;
 }>();
 
 const editInput = ref<HTMLInputElement | null>(null);
@@ -431,6 +433,17 @@ function stopLongPress() {
           >
             {{ durationText }}
           </span>
+
+          <button
+            v-if="hasChildren"
+            type="button"
+            class="shrink-0 w-5 h-5 flex items-center justify-center text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-transform duration-200"
+            :class="{ 'rotate-90': !collapsed }"
+            @click.stop="emit('toggle-collapse')"
+            @mousedown.stop
+          >
+            <CaretRightOutlined :style="{ fontSize: '14px' }" />
+          </button>
         </div>
       </template>
     </div>

@@ -25,6 +25,17 @@ const emit = defineEmits<{
 const newTodoInput = ref("");
 const editingId = ref<string | null>(null);
 const editContent = ref("");
+const collapsedIds = ref<Set<string>>(new Set());
+
+function onToggleCollapse(id: string) {
+  const next = new Set(collapsedIds.value);
+  if (next.has(id)) {
+    next.delete(id);
+  } else {
+    next.add(id);
+  }
+  collapsedIds.value = next;
+}
 
 const nestedTodos = ref<TodoItemNode[]>([]);
 let isProgrammaticUpdate = false;
@@ -249,6 +260,8 @@ function onDeleteTodo(id: string) {
         :settings="settings"
         :editing-id="editingId"
         :edit-content="editContent"
+        :collapsed-ids="collapsedIds"
+        :toggle-collapse="onToggleCollapse"
         :toggle-complete="onToggleComplete"
         :start-edit="startEdit"
         :save-edit="saveEdit"

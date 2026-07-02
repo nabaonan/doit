@@ -12,6 +12,8 @@ const props = defineProps<{
   editingId: string | null;
   editContent: string;
   depth?: number;
+  collapsedIds: Set<string>;
+  toggleCollapse: (id: string) => void;
   toggleComplete: (id: string) => void;
   startEdit: (node: TodoItemNode) => void;
   saveEdit: (content: string) => void;
@@ -57,6 +59,8 @@ const list = computed({
         :has-children="element.children.length > 0"
         :is-sub-task="!!element.parentId"
         :depth="currentDepth"
+        :collapsed="collapsedIds.has(element.id)"
+        @toggle-collapse="toggleCollapse(element.id)"
         @toggle-complete="toggleComplete(element.id)"
         @start-edit="startEdit(element)"
         @save-edit="(content: string) => saveEdit(content)"
@@ -69,12 +73,14 @@ const list = computed({
         @cancel-reminder="cancelReminder(element.id)"
       />
       <NestedTodoList
-        v-if="element.children.length > 0"
+        v-if="element.children.length > 0 && !collapsedIds.has(element.id)"
         v-model="element.children"
         :settings="settings"
         :editing-id="editingId"
         :edit-content="editContent"
         :depth="currentDepth + 1"
+        :collapsed-ids="collapsedIds"
+        :toggle-collapse="toggleCollapse"
         :toggle-complete="toggleComplete"
         :start-edit="startEdit"
         :save-edit="saveEdit"
