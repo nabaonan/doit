@@ -10,6 +10,7 @@ dayjs.locale("zh-cn");
 import TitleBar from "./components/TitleBar.vue";
 import TodoList from "./components/TodoList.vue";
 import TimeView from "./components/TimeView.vue";
+import TimelineView from "./components/TimelineView.vue";
 import SettingsDialog from "./components/SettingsDialog.vue";
 import ReportDialog from "./components/ReportDialog.vue";
 import CategoryDialog from "./components/CategoryDialog.vue";
@@ -67,7 +68,7 @@ const settings = ref<AppSettings>({
 const showSettings = ref(false);
 const showReport = ref(false);
 const showBackup = ref(false);
-const currentView = ref<"today" | "time" | "heatmap">("today");
+const currentView = ref<"today" | "calendar" | "timeline" | "heatmap">("today");
 const selectedCatId = ref<string>("__none__");
 const showCategoryDialog = ref(false);
 const showTagDialog = ref(false);
@@ -158,6 +159,10 @@ const completedTodos = computed(() =>
     const ancestor = getFirstLevelAncestor(t);
     return isFirstLevelCrossedOver(ancestor);
   })
+);
+
+const allCompletedTodos = computed(() =>
+  todos.value.filter((t) => t.completed && !!t.completedAt)
 );
 
 provide("settings", settings);
@@ -744,7 +749,7 @@ async function handleCancelReminder(id: string) {
             @open-settings="showSettings = true"
             @open-report="showReport = true"
             @open-backup="showBackup = true"
-            @update:view="(v) => currentView = v as 'today' | 'time'"
+            @update:view="(v) => currentView = v as 'today' | 'calendar' | 'timeline' | 'heatmap'"
             @select-cat="handleSelectCat"
             @manage-categories="showCategoryDialog = true"
             @manage-tags="showTagDialog = true"
@@ -765,8 +770,12 @@ async function handleCancelReminder(id: string) {
             @cancel-reminder="handleCancelReminder"
           />
           <TimeView
-            v-if="currentView === 'time'"
+            v-if="currentView === 'calendar'"
             :todos="completedTodos"
+          />
+          <TimelineView
+            v-if="currentView === 'timeline'"
+            :todos="allCompletedTodos"
           />
           <StatisticsView
             v-if="currentView === 'heatmap'"

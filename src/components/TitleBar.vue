@@ -75,7 +75,8 @@ function handleManageTags() {
         v-model:value="currentView"
         :options="[
           { label: '今日待办', value: 'today' },
-          { label: '按时间查看', value: 'time' },
+          { label: '日历浏览', value: 'calendar' },
+          { label: '时间轴', value: 'timeline' },
           { label: '统计', value: 'heatmap' },
         ]"
         size="small"
