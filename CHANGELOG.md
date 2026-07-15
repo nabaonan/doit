@@ -1,5 +1,23 @@
 # Changelog
 
+## v0.1.48 (2026-07-15)
+
+### Bug 修复
+
+- 修复今日待办逻辑 (`e4892cc` by @nabaonan)
+- 修复编辑状态无法选择的问题 (`48468b2` by @nabaonan)
+
+### 文档更新
+
+- 更新 Changelog for v0.1.47 (`5bafef1` by @github-actions[bot])
+
+### 构建/工具
+
+- release v0.1.48 (`ac97169` by @nabaonan)
+
+---
+
+
 ## v0.1.47 (2026-07-02)
 
 ### 新功能
