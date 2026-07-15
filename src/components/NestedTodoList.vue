@@ -49,6 +49,8 @@ const list = computed({
     :scroll-sensitivity="100"
     :scroll-speed="20"
     :delay="50"
+    :filter="'.editing-item'"
+    :prevent-on-filter="false"
   >
     <div v-for="element in list" :key="element.id" :data-todo-id="element.id">
       <TodoItem

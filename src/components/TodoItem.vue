@@ -330,9 +330,11 @@ function stopLongPress() {
     :trigger="['contextmenu']"
   >
     <div
-      class="py-3 px-4 border-b border-[var(--border)] cursor-pointer relative overflow-hidden select-none flex items-center gap-3"
+      class="py-3 px-4 border-b border-[var(--border)] cursor-pointer relative overflow-hidden flex items-center gap-3"
       :class="{
         'cursor-default': isEditing,
+        'editing-item': isEditing,
+        'select-none': !isEditing,
       }"
       :style="(depth ?? 0) > 0 ? { paddingLeft: `${24 + (depth ?? 0) * 20}px` } : undefined"
       @dblclick="onDblClick"
