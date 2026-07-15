@@ -112,7 +112,8 @@ const reminderTodo = computed(() => {
   return todos.value.find((t) => t.id === reminderTodoId.value) ?? null;
 });
 
-const todayStr = computed(() => dayjs().format("YYYY-MM-DD"));
+const currentTime = ref(Date.now());
+const todayStr = computed(() => dayjs(currentTime.value).format("YYYY-MM-DD"));
 
 function toLocalDateStr(isoStr: string): string {
   const d = new Date(isoStr);
@@ -136,6 +137,10 @@ function getFirstLevelAncestor(item: TodoItem): TodoItem {
     current = parent;
   }
   return current;
+}
+
+function refreshCurrentTime() {
+  currentTime.value = Date.now();
 }
 
 const activeTodos = computed(() => {
@@ -527,6 +532,7 @@ function getDescendantIds(parentId: string): string[] {
 }
 
 async function handleToggleComplete(id: string) {
+  refreshCurrentTime();
   if (togglingIds.has(id)) return;
   const todo = todos.value.find((t) => t.id === id);
   if (!todo) return;
