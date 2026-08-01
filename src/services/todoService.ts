@@ -1,5 +1,5 @@
 import type { TodoItem } from "../types"
-import { getDb } from "./db"
+import { getDb, closeDb } from "./db"
 
 export async function init(): Promise<void> {
   await getDb()
@@ -148,10 +148,33 @@ export async function deleteTodo(id: string): Promise<boolean> {
 
 export async function clearAllTodos(): Promise<boolean> {
   const db = await getDb()
-  if (!db) return false
-  await (db as { execute: (sql: string) => Promise<void> }).execute("DELETE FROM todos")
-  // 同时清空分类和标签（它们存在 settings 表中）
-  await (db as { execute: (sql: string) => Promise<void> }).execute("DELETE FROM settings WHERE key IN ('categories', 'tags')")
+  if (db) {
+    await (db as { execute: (sql: string) => Promise<void> }).execute("DELETE FROM todos")
+    await (db as { execute: (sql: string) => Promise<void> }).execute("DELETE FROM settings")
+  }
+  localStorage.removeItem("doit_todos")
+  localStorage.removeItem("doit_settings")
+  return true
+}
+
+export async function resetAllData(): Promise<boolean> {
+  const isTauri = !!(window as unknown as { __TAURI__?: unknown }).__TAURI__
+  if (isTauri) {
+    const { invoke } = await import("@tauri-apps/api/core")
+    await closeDb()
+    await invoke("reset_db")
+    await getDb()
+  } else {
+    const db = await getDb()
+    if (db) {
+      await (db as { execute: (sql: string) => Promise<void> }).execute("DELETE FROM todos")
+      await (db as { execute: (sql: string) => Promise<void> }).execute("DELETE FROM settings")
+    }
+    await closeDb()
+    await getDb()
+  }
+  localStorage.removeItem("doit_todos")
+  localStorage.removeItem("doit_settings")
   return true
 }
 

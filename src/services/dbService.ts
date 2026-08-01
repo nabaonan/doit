@@ -153,13 +153,13 @@ export async function exportDatabase(): Promise<void> {
   URL.revokeObjectURL(url)
 }
 
-export async function importDatabase(): Promise<void> {
+export async function importDatabase(): Promise<{ todos: Record<string, unknown>[]; settings: Record<string, unknown>[] } | void> {
   const isTauri = !!(window as unknown as { __TAURI__?: unknown }).__TAURI__
   if (isTauri) {
     try {
-      const { appConfigDir } = await import("@tauri-apps/api/path")
+      const { appDataDir } = await import("@tauri-apps/api/path")
       const { open } = await import("@tauri-apps/plugin-dialog")
-      const { readFile, writeFile } = await import("@tauri-apps/plugin-fs")
+      const { readFile, writeFile, remove: removeFile } = await import("@tauri-apps/plugin-fs")
 
       const filePath = await open({
         multiple: false,
@@ -168,12 +168,19 @@ export async function importDatabase(): Promise<void> {
 
       if (!filePath) return
 
+      if (typeof filePath === "string" && !filePath.toLowerCase().endsWith(".db")) {
+        return
+      }
+
       const data = await readFile(filePath as string)
 
       await closeDb()
 
-      const configDir = await appConfigDir()
-      const dbPath = `${configDir}doit.db`
+      const dataDir = await appDataDir()
+      const dbPath = `${dataDir}doit.db`
+
+      try { await removeFile(`${dataDir}doit.db-wal`) } catch {}
+      try { await removeFile(`${dataDir}doit.db-shm`) } catch {}
 
       await writeFile(dbPath, data)
 
@@ -234,4 +241,6 @@ export async function importDatabase(): Promise<void> {
   if (settings.length > 0) {
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings))
   }
+
+  return { todos, settings }
 }

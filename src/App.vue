@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, onUnmounted, watch, provide, nextTick } from "vue";
+import { useAppStore } from "./stores/appStore";
 import { theme as antTheme } from "antdv-next";
 import zhCN from "antdv-next/locale/zh_CN";
 import { HappyProvider } from "@antdv-next/happy-work-theme";
@@ -18,7 +19,7 @@ import TagDialog from "./components/TagDialog.vue";
 import BackupDialog from "./components/BackupDialog.vue";
 import ReminderDialog from "./components/ReminderDialog.vue";
 import type { TodoItem, AppSettings, Category } from "./types";
-import { init as initTodos, getAllTodos, addTodo, updateTodo, deleteTodo, reorderTodos, sortTodos, clearAllTodos } from "./services/todoService";
+import { init as initTodos, getAllTodos, addTodo, updateTodo, deleteTodo, reorderTodos, sortTodos, resetAllData } from "./services/todoService";
 import { init as initSettings, getSettings, saveSettings } from "./services/settingsService";
 import { exportDatabase, importDatabase } from "./services/dbService";
 import { startScheduler, stopScheduler, setCallbacks as setSchedulerCallbacks, runRestoreOnStartup, runBackupOnExit, runBackup } from "./services/autoSyncService";
@@ -26,50 +27,15 @@ import { loadReminders, scheduleReminder, cancelReminder as cancelReminderServic
 import { message } from "antdv-next";
 import type { Tag } from "./types";
 
-const todos = ref<TodoItem[]>([]);
+const store = useAppStore();
+const todos = computed({ get: () => store.todos, set: (v: TodoItem[]) => store.setTodos(v) });
+const settings = computed({ get: () => store.settings, set: (v: AppSettings) => store.setSettings(v) });
+const selectedCatId = computed({ get: () => store.selectedCatId, set: (v: string) => store.setSelectedCatId(v) });
 const togglingIds = new Set<string>();
-const settings = ref<AppSettings>({
-  completionMode: "longpress",
-  longPressDuration: 3,
-  theme: "system",
-  happyMode: false,
-  fontFamily: "default",
-  addTodoShortcut: {
-    key: "Enter",
-    ctrl: false,
-    shift: false,
-    alt: false,
-    meta: false,
-  },
-  tags: [],
-  categories: [],
-  defaultCategoryId: null,
-  cloudSync: {
-    enabled: false,
-    provider: "webdav",
-    webdavUrl: "",
-    webdavUsername: "",
-    webdavPassword: "",
-    fetchOnStartup: true,
-    uploadOnExit: true,
-    keepRecent: 3,
-  },
-  autoBackup: {
-    enabled: false,
-    interval: 30,
-    unit: "minute",
-  },
-  autoRestore: {
-    enabled: false,
-    interval: 30,
-    unit: "minute",
-  },
-});
 const showSettings = ref(false);
 const showReport = ref(false);
 const showBackup = ref(false);
 const currentView = ref<"today" | "calendar" | "timeline" | "heatmap">("today");
-const selectedCatId = ref<string>("__none__");
 const showCategoryDialog = ref(false);
 const showTagDialog = ref(false);
 const reminderTodoId = ref<string | null>(null);
@@ -671,18 +637,9 @@ function handleBackupNow(newSettings?: AppSettings) {
 }
 
 async function handleClearData() {
-  const ok = await clearAllTodos();
-  if (ok) {
-    todos.value = await getAllTodos();
-    // 同步清空 settings 状态中的 categories 和 tags
-    settings.value = {
-      ...settings.value,
-      categories: [],
-      tags: [],
-    };
-  } else {
-    todos.value = [];
-  }
+  await resetAllData();
+  store.resetAll();
+  message.success("数据已清空重置");
 }
 
 async function handleExportDb() {
@@ -695,9 +652,49 @@ async function handleExportDb() {
 
 async function handleImportDb() {
   try {
-    await importDatabase();
-    todos.value = await getAllTodos();
-    settings.value = await getSettings();
+    const result = await importDatabase();
+    if (result) {
+      // 浏览器模式：使用返回的导入数据直接更新
+      const items: TodoItem[] = result.todos.map((row: Record<string, unknown>) => ({
+        id: row.id as string,
+        content: row.content as string,
+        completed: (row.completed as number) === 1,
+        createdAt: row.created_at as string,
+        completedAt: (row.completed_at as string) ?? null,
+        order: row.sort_order as number,
+        tagId: (row.tag_id as string) ?? null,
+        catId: (row.cat_id as string) ?? null,
+        parentId: (row.parent_id as string) ?? null,
+        remindAt: (row.remind_at as string) ?? null,
+      }));
+      todos.value = sortTodos(items);
+      // 从 settings 行中构造 settings 对象
+      const kv: Record<string, string> = {};
+      for (const row of result.settings) {
+        kv[row.key as string] = row.value as string;
+      }
+      const parseSchedule = (raw: string | undefined) =>
+        raw ? JSON.parse(raw) : { enabled: false, interval: 30, unit: "minute" };
+      settings.value = {
+        ...settings.value,
+        completionMode: (kv["completionMode"] as "checkbox" | "longpress") || "checkbox",
+        longPressDuration: kv["longPressDuration"] ? Number(kv["longPressDuration"]) : 3,
+        theme: (kv["theme"] as "system" | "light" | "dark") || "system",
+        happyMode: kv["happyMode"] === "true",
+        fontFamily: (kv["fontFamily"] as "default" | "cartoon") || "default",
+        addTodoShortcut: kv["addTodoShortcut"] ? JSON.parse(kv["addTodoShortcut"]) : { key: "Enter", ctrl: false, shift: false, alt: false, meta: false },
+        tags: kv["tags"] ? JSON.parse(kv["tags"]) : [],
+        categories: kv["categories"] ? JSON.parse(kv["categories"]) : [],
+        defaultCategoryId: kv["defaultCategoryId"] ? JSON.parse(kv["defaultCategoryId"]) : null,
+        cloudSync: kv["cloudSync"] ? JSON.parse(kv["cloudSync"]) : settings.value.cloudSync,
+        autoBackup: parseSchedule(kv["autoBackup"]),
+        autoRestore: parseSchedule(kv["autoRestore"]),
+      };
+    } else {
+      // Tauri 模式：数据库文件已覆盖，重新加载
+      todos.value = await getAllTodos();
+      settings.value = await getSettings();
+    }
   } catch (e) {
     console.error("导入数据库失败", e);
   }
@@ -707,6 +704,23 @@ async function handleDataChanged() {
   todos.value = await getAllTodos();
   settings.value = await getSettings();
   showBackup.value = false;
+  // 尝试从 localStorage 恢复可能缺失的分类/标签
+  if ((!settings.value.categories || settings.value.categories.length === 0) || (!settings.value.tags || settings.value.tags.length === 0)) {
+    try {
+      const raw = localStorage.getItem("doit_settings");
+      if (raw) {
+        const rows = JSON.parse(raw) as Array<{ key: string; value: string }>;
+        const kv: Record<string, string> = {};
+        for (const r of rows) kv[r.key] = r.value;
+        if (kv["categories"] && (!settings.value.categories || settings.value.categories.length === 0)) {
+          settings.value.categories = JSON.parse(kv["categories"]);
+        }
+        if (kv["tags"] && (!settings.value.tags || settings.value.tags.length === 0)) {
+          settings.value.tags = JSON.parse(kv["tags"]);
+        }
+      }
+    } catch {}
+  }
 }
 
 function handleSetReminder(id: string) {

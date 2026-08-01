@@ -513,6 +513,17 @@ fn exit_app(app: tauri::AppHandle) {
 }
 
 #[tauri::command]
+async fn reset_db(app: tauri::AppHandle) -> Result<String, String> {
+    let db_path = db_path(&app)?;
+    let conn = rusqlite::Connection::open(&db_path)
+        .map_err(|e| format!("打开数据库失败: {}", e))?;
+    conn.execute_batch("DELETE FROM todos; DELETE FROM settings; VACUUM;")
+        .map_err(|e| format!("清空数据库失败: {}", e))?;
+    drop(conn);
+    Ok("数据库已清空".to_string())
+}
+
+#[tauri::command]
 fn greet(name: &str) -> String {
     format!("Hello, {}! You've been greeted from Rust!", name)
 }
@@ -900,6 +911,7 @@ pub fn run() {
             delete_webdav_backup,
             clean_export_db,
             diagnose_db_paths,
+            reset_db,
             exit_app,
             check_for_update,
             get_app_version,

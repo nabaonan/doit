@@ -32,6 +32,7 @@
     "jspdf": "^4.2.1",
     "lightningcss": "^1.32.0",
     "marked": "^15.0.0",
+    "pinia": "^4.0.2",
     "sortablejs": "^1.15.7",
     "sql.js": "^1.14.1",
     "tippy.js": "^6.3.7",
