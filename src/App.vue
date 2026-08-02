@@ -196,12 +196,12 @@ onMounted(async () => {
   // 启动自动备份/恢复调度器
   setSchedulerCallbacks({
     onBackupStatus: (s) => {
-      if (s === "自动备份完成" || s === "关闭时上传完成") message.success(s);
-      else if (s === "自动备份失败" || s === "关闭时上传失败") message.error(s);
+      if (s.endsWith("完成")) message.success(s);
+      else if (s.endsWith("失败")) message.error(s);
     },
     onRestoreStatus: (s) => {
-      if (s === "自动恢复完成" || s === "云端数据拉取成功") message.success(s);
-      else if (s === "自动恢复失败" || s === "启动拉取失败") message.error(s);
+      if (s.endsWith("完成") || s === "云端数据拉取成功") message.success(s);
+      else if (s.endsWith("失败") || s === "启动拉取失败") message.error(s);
     },
     onDataChanged: async () => {
       // 自动恢复后重新加载 todos 和 settings
