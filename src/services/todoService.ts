@@ -161,7 +161,14 @@ export async function resetAllData(): Promise<boolean> {
   const isTauri = !!(window as unknown as { __TAURI__?: unknown }).__TAURI__
   if (isTauri) {
     const { invoke } = await import("@tauri-apps/api/core")
+    // 与下载恢复完全一致的步骤：关闭 + 等待 + 调用 Rust + 重新打开
+    // 顺序不能错：必须先 closeDb() 让 db.ts 缓存失效；
+    // 同时清空 localStorage，避免后续 getDb() 里的 migrateFromLocalStorage
+    // 把刚删空的 db 用 localStorage 里的旧数据重新填回去（导致"清不掉"）。
     await closeDb()
+    localStorage.removeItem("doit_todos")
+    localStorage.removeItem("doit_settings")
+    await new Promise((r) => setTimeout(r, 300))
     await invoke("reset_db")
     await getDb()
   } else {
@@ -171,10 +178,10 @@ export async function resetAllData(): Promise<boolean> {
       await (db as { execute: (sql: string) => Promise<void> }).execute("DELETE FROM settings")
     }
     await closeDb()
+    localStorage.removeItem("doit_todos")
+    localStorage.removeItem("doit_settings")
     await getDb()
   }
-  localStorage.removeItem("doit_todos")
-  localStorage.removeItem("doit_settings")
   return true
 }
 

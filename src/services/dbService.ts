@@ -153,41 +153,42 @@ export async function exportDatabase(): Promise<void> {
   URL.revokeObjectURL(url)
 }
 
-export async function importDatabase(): Promise<{ todos: Record<string, unknown>[]; settings: Record<string, unknown>[] } | void> {
+export async function importDatabase(): Promise<{ todos: Record<string, unknown>[]; settings: Record<string, unknown>[] } | { summary: string; settingsFromSource?: Record<string, unknown>[] }> {
   const isTauri = !!(window as unknown as { __TAURI__?: unknown }).__TAURI__
   if (isTauri) {
     try {
-      const { appDataDir } = await import("@tauri-apps/api/path")
       const { open } = await import("@tauri-apps/plugin-dialog")
-      const { readFile, writeFile, remove: removeFile } = await import("@tauri-apps/plugin-fs")
+      const { invoke } = await import("@tauri-apps/api/core")
 
       const filePath = await open({
         multiple: false,
         filters: [{ name: "SQLite Database", extensions: ["db"] }],
       })
 
-      if (!filePath) return
-
-      if (typeof filePath === "string" && !filePath.toLowerCase().endsWith(".db")) {
-        return
+      if (!filePath) {
+        return { summary: "" }
       }
 
-      const data = await readFile(filePath as string)
+      const pathStr = typeof filePath === "string" ? filePath : (filePath as { path?: string }).path ?? ""
+      if (!pathStr.toLowerCase().endsWith(".db")) {
+        throw new Error("只能选择 .db 后缀的 SQLite 数据库文件")
+      }
 
+      // 与下载恢复 BackupDialog.handleDownload 完全一致的步骤：
+      // 1. 关闭 db 连接（让 tauri-plugin-sql 释放文件锁，Windows 必须）
       await closeDb()
-
-      const dataDir = await appDataDir()
-      const dbPath = `${dataDir}doit.db`
-
-      try { await removeFile(`${dataDir}doit.db-wal`) } catch {}
-      try { await removeFile(`${dataDir}doit.db-shm`) } catch {}
-
-      await writeFile(dbPath, data)
-
+      // 2. 等待 300ms 让 Windows 释放文件句柄
+      await new Promise((r) => setTimeout(r, 300))
+      // 3. 调用 Rust 端用 temp + rename 原子替换 db
+      const resultJson = await invoke<string>("clean_import_db", { sourcePath: pathStr })
+      // 4. 重新初始化数据库
       await getDb()
-      return
-    } catch {
-      // fallback to browser import
+      // 5. 解析返回的 JSON，包含 summary 和 source db 的 settings KV 数据
+      const parsed = JSON.parse(resultJson) as { summary: string; settings: Array<{ key: string; value: string }> }
+      return { summary: parsed.summary, settingsFromSource: parsed.settings }
+    } catch (e) {
+      console.error("Tauri 导入失败", e)
+      throw e
     }
   }
 
@@ -201,14 +202,20 @@ export async function importDatabase(): Promise<{ todos: Record<string, unknown>
     input.click()
   })
 
-  if (!file) return
+  if (!file) {
+    return { todos: [], settings: [] }
+  }
+
+  if (!file.name.toLowerCase().endsWith(".db")) {
+    throw new Error("只能选择 .db 后缀的 SQLite 数据库文件")
+  }
 
   const fileBuffer = await file.arrayBuffer()
   const SQL = await getSQL()
   const db = new SQL.Database(new Uint8Array(fileBuffer))
 
   // 读取 todos
-  const todos: any[] = []
+  const todos: Record<string, unknown>[] = []
   try {
     const stmt = db.prepare("SELECT * FROM todos")
     while (stmt.step()) {
@@ -221,7 +228,7 @@ export async function importDatabase(): Promise<{ todos: Record<string, unknown>
   }
 
   // 读取 settings
-  const settings: any[] = []
+  const settings: Record<string, unknown>[] = []
   try {
     const stmt = db.prepare("SELECT key, value FROM settings")
     while (stmt.step()) {

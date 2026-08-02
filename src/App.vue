@@ -653,7 +653,40 @@ async function handleExportDb() {
 async function handleImportDb() {
   try {
     const result = await importDatabase();
-    if (result) {
+    if (!result) return;
+    if ("summary" in result) {
+      if (!result.summary) return;
+      // Tauri 模式：加载待办数据
+      todos.value = await getAllTodos();
+      // 使用 Rust 返回的 settings KV 数据直接构建设置对象，
+      // 避免依赖 DB 重新读取（DB 连接可能返回缓存数据）
+      if (result.settingsFromSource && result.settingsFromSource.length > 0) {
+        const kv: Record<string, string> = {};
+        for (const row of result.settingsFromSource) {
+          kv[row.key as string] = row.value as string;
+        }
+        const parseSchedule = (raw: string | undefined) =>
+          raw ? JSON.parse(raw) : { enabled: false, interval: 30, unit: "minute" };
+        settings.value = {
+          ...settings.value,
+          completionMode: (kv["completionMode"] as "checkbox" | "longpress") || "checkbox",
+          longPressDuration: kv["longPressDuration"] ? Number(kv["longPressDuration"]) : 3,
+          theme: (kv["theme"] as "system" | "light" | "dark") || "system",
+          happyMode: kv["happyMode"] === "true",
+          fontFamily: (kv["fontFamily"] as "default" | "cartoon") || "default",
+          addTodoShortcut: kv["addTodoShortcut"] ? JSON.parse(kv["addTodoShortcut"]) : { key: "Enter", ctrl: false, shift: false, alt: false, meta: false },
+          tags: kv["tags"] ? JSON.parse(kv["tags"]) : [],
+          categories: kv["categories"] ? JSON.parse(kv["categories"]) : [],
+          defaultCategoryId: kv["defaultCategoryId"] ? JSON.parse(kv["defaultCategoryId"]) : null,
+          cloudSync: kv["cloudSync"] ? JSON.parse(kv["cloudSync"]) : settings.value.cloudSync,
+          autoBackup: parseSchedule(kv["autoBackup"]),
+          autoRestore: parseSchedule(kv["autoRestore"]),
+        };
+      } else {
+        settings.value = await getSettings();
+      }
+      message.success(`导入成功：${result.summary}`);
+    } else {
       // 浏览器模式：使用返回的导入数据直接更新
       const items: TodoItem[] = result.todos.map((row: Record<string, unknown>) => ({
         id: row.id as string,
@@ -690,13 +723,11 @@ async function handleImportDb() {
         autoBackup: parseSchedule(kv["autoBackup"]),
         autoRestore: parseSchedule(kv["autoRestore"]),
       };
-    } else {
-      // Tauri 模式：数据库文件已覆盖，重新加载
-      todos.value = await getAllTodos();
-      settings.value = await getSettings();
+      message.success(`导入成功：待办 ${result.todos.length} 条，设置 ${result.settings.length} 项`);
     }
-  } catch (e) {
+  } catch (e: any) {
     console.error("导入数据库失败", e);
+    message.error(e?.message || "导入数据库失败");
   }
 }
 

@@ -514,13 +514,114 @@ fn exit_app(app: tauri::AppHandle) {
 
 #[tauri::command]
 async fn reset_db(app: tauri::AppHandle) -> Result<String, String> {
+    // 与下载恢复 download_db_from_webdav 完全一致：
+    // 直接删 db + wal + shm 文件，下次 getDb() 走 CREATE TABLE IF NOT EXISTS
+    // 自动重建空表。比 DELETE FROM + VACUUM 更彻底，避免任何残留
+    // （包括 wal 未合并的页面、autoindex、freelist 等）。
     let db_path = db_path(&app)?;
-    let conn = rusqlite::Connection::open(&db_path)
-        .map_err(|e| format!("打开数据库失败: {}", e))?;
-    conn.execute_batch("DELETE FROM todos; DELETE FROM settings; VACUUM;")
-        .map_err(|e| format!("清空数据库失败: {}", e))?;
-    drop(conn);
+    let _ = std::fs::remove_file(&db_path);
+    let _ = std::fs::remove_file(db_path.with_extension("db-wal"));
+    let _ = std::fs::remove_file(db_path.with_extension("db-shm"));
     Ok("数据库已清空".to_string())
+}
+
+/// 导入 SQLite 数据库：与下载恢复 download_db_from_webdav 完全相同的实现，
+/// 用 temp + rename 的方式原子替换目标 db 文件。
+/// 替换前读取源 settings 表全部 KV 数据并返回（JSON 格式），
+/// 前端直接用这些数据构造 settings 对象，避免依赖 DB 重新读取。
+#[tauri::command]
+async fn clean_import_db(
+    app: tauri::AppHandle,
+    source_path: String,
+) -> Result<String, String> {
+    use std::io::Read;
+
+    let src = PathBuf::from(&source_path);
+    if !src.exists() {
+        return Err(format!("源文件不存在: {}", source_path));
+    }
+
+    // 1. 验证源文件是有效的 SQLite 数据库（检查 16 字节文件头 "SQLite format 3\0"）
+    {
+        let mut file = std::fs::File::open(&src)
+            .map_err(|e| format!("打开源文件失败: {}", e))?;
+        let mut header = [0u8; 16];
+        file.read_exact(&mut header)
+            .map_err(|e| format!("读取文件头失败: {}", e))?;
+        if &header != b"SQLite format 3\0" {
+            return Err("源文件不是有效的 SQLite 数据库（请选择 .db 后缀的数据库文件）".to_string());
+        }
+    }
+
+    // 2. 在替换之前，先从源文件读取 settings 数据，用于返回给前端
+    //    同时统计 todos 和 settings 的行数
+    let mut settings_kv: Vec<serde_json::Value> = Vec::new();
+    let (todos_count, settings_count) = {
+        let src_conn = rusqlite::Connection::open(&src)
+            .map_err(|e| format!("打开源数据库失败: {}", e))?;
+        let _ = src_conn.execute_batch("PRAGMA journal_mode = WAL;");
+        let _ = src_conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);");
+
+        let tc = src_conn
+            .query_row("SELECT count(*) FROM todos", [], |row| row.get(0))
+            .unwrap_or(0);
+        let sc = src_conn
+            .query_row("SELECT count(*) FROM settings", [], |row| row.get(0))
+            .unwrap_or(0);
+
+        if let Ok(mut stmt) = src_conn.prepare("SELECT key, value FROM settings") {
+            if let Ok(rows) = stmt.query_map([], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                ))
+            }) {
+                for row in rows.flatten() {
+                    settings_kv.push(serde_json::json!({
+                        "key": row.0,
+                        "value": row.1,
+                    }));
+                }
+            }
+        }
+        drop(src_conn);
+        (tc, sc)
+    };
+
+    // 3. 读取源文件字节
+    let bytes = std::fs::read(&src)
+        .map_err(|e| format!("读取源文件失败: {}", e))?;
+
+    // 4. 获取实际 db 路径
+    let db = db_path(&app)?;
+
+    // 5. 备份当前 db
+    if db.exists() {
+        let backup_name = format!("{}.bak", db.display());
+        let _ = std::fs::copy(&db, &backup_name);
+    }
+
+    // 6. 写入临时文件
+    let temp_path = db.with_extension("db.import.tmp");
+    std::fs::write(&temp_path, &bytes)
+        .map_err(|e| format!("写入临时文件失败: {}", e))?;
+
+    // 7. 删除原 db + wal + shm
+    let _ = std::fs::remove_file(&db);
+    let _ = std::fs::remove_file(db.with_extension("db-wal"));
+    let _ = std::fs::remove_file(db.with_extension("db-shm"));
+
+    // 8. 重命名临时文件为 db
+    std::fs::rename(&temp_path, &db)
+        .map_err(|e| format!("重命名失败: {}", e))?;
+
+    // 9. 构造返回 JSON（包含统计信息和 settings KV 数据）
+    let result = serde_json::json!({
+        "summary": format!("待办 {} 条，设置 {} 项", todos_count, settings_count),
+        "settings": settings_kv
+    });
+
+    Ok(result.to_string())
 }
 
 #[tauri::command]
@@ -910,6 +1011,7 @@ pub fn run() {
             list_webdav_backups,
             delete_webdav_backup,
             clean_export_db,
+            clean_import_db,
             diagnose_db_paths,
             reset_db,
             exit_app,
