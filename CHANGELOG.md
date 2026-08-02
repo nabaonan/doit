@@ -1,5 +1,24 @@
 # Changelog
 
+## v0.1.49 (2026-08-02)
+
+### Bug 修复
+
+- 修复同步过程的分类没有同步问题 (`993ff44` by @nabaonan)
+- 修复同步恢复时候没有恢复分类信息的问题 (`0033a19` by @nabaonan)
+
+### 文档更新
+
+- 多色彩主题切换设计文档 (`e2c6d27` by @nabaonan)
+- 更新 Changelog for v0.1.48 (`d4f5966` by @github-actions[bot])
+
+### 构建/工具
+
+- release v0.1.49 (`050c150` by @nabaonan)
+
+---
+
+
 ## v0.1.48 (2026-07-15)
 
 ### Bug 修复
