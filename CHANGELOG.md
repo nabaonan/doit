@@ -1,5 +1,31 @@
 # Changelog
 
+## v0.1.51 (2026-08-04)
+
+### 新功能
+
+- 增加日历视图 (`9d3e706` by @nabaonan)
+
+### Bug 修复
+
+- 优化日历视图展示 (`9227899` by @nabaonan)
+- 调整样式 (`023f772` by @nabaonan)
+
+### 文档更新
+
+- 更新 Changelog for v0.1.50 (`6a63dbc` by @github-actions[bot])
+
+### 构建/工具
+
+- release v0.1.51 (`df32229` by @nabaonan)
+
+### 其他变更
+
+- Merge branch 'main' of github.com:nabaonan/doit (`f79aae0` by @nabaonan)
+
+---
+
+
 ## v0.1.50 (2026-08-02)
 
 ### Bug 修复
