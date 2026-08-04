@@ -1,5 +1,26 @@
 # Changelog
 
+## v0.1.50 (2026-08-02)
+
+### Bug 修复
+
+- 增加成功提示 (`4d86b5c` by @nabaonan)
+
+### 文档更新
+
+- 更新 Changelog for v0.1.49 (`33cc9d3` by @github-actions[bot])
+
+### 构建/工具
+
+- release v0.1.50 (`80c9fdf` by @nabaonan)
+
+### 其他变更
+
+- Merge branch 'main' of github.com:nabaonan/doit (`c1a46ae` by @nabaonan)
+
+---
+
+
 ## v0.1.49 (2026-08-02)
 
 ### Bug 修复
