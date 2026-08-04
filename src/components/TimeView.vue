@@ -3,6 +3,7 @@ import { ref, computed } from "vue";
 import dayjs from "dayjs";
 import isoWeek from "dayjs/plugin/isoWeek";
 import TodoItem from "./TodoItem.vue";
+import CalendarView from "./CalendarView.vue";
 import type { TodoItem as TodoItemType, TodoItemNode } from "../types";
 import { flatToNested } from "../types";
 
@@ -12,6 +13,7 @@ const props = defineProps<{
   todos: TodoItemType[];
 }>();
 
+const viewMode = ref<"list" | "calendar">("calendar");
 const mode = ref<"week" | "month">("week");
 const currentDate = ref(dayjs());
 const selectedDay = ref(dayjs().format("YYYY-MM-DD"));
@@ -74,77 +76,96 @@ const selectedDayNodes = computed<TodoItemNode[]>(() => {
 function onSelect({ key }: { key: string }) {
   selectedDay.value = key;
 }
+
+function onViewModeChange(val: "list" | "calendar") {
+  viewMode.value = val;
+}
 </script>
 
 <template>
   <div class="flex-1 flex flex-col overflow-hidden">
     <div class="px-4 py-3 border-b border-[var(--border)] flex items-center gap-3 shrink-0">
       <a-segmented
-        v-model:value="mode"
+        :value="viewMode"
         :options="[
-          { label: '按周', value: 'week' },
-          { label: '按月', value: 'month' },
+          { label: '列表视图', value: 'list' },
+          { label: '日历视图', value: 'calendar' },
         ]"
         size="small"
-        @change="onModeChange"
+        @change="onViewModeChange"
       />
-      <a-date-picker
-        v-if="mode === 'week'"
-        v-model:value="currentDate"
-        picker="week"
-        format="YYYY 第wo"
-        @change="onDateChange"
-        class="flex-1"
-      />
-      <a-date-picker
-        v-else
-        v-model:value="currentDate"
-        picker="month"
-        format="YYYY年M月"
-        @change="onDateChange"
-        class="flex-1"
-      />
-    </div>
-
-    <div class="flex-1 flex overflow-hidden">
-      <div class="w-[150px] border-r border-[var(--border)] shrink-0 min-h-0" style="overflow-y: auto; max-height: 100%;">
-        <a-menu
-          mode="inline"
-          :items="dayItems"
-          :selectedKeys="[selectedDay]"
-          @select="onSelect"
-          style="border-inline-end: none !important;"
+      <div v-if="viewMode === 'list'" class="flex items-center gap-3 flex-1">
+        <a-segmented
+          v-model:value="mode"
+          :options="[
+            { label: '按周', value: 'week' },
+            { label: '按月', value: 'month' },
+          ]"
+          size="small"
+          @change="onModeChange"
+        />
+        <a-date-picker
+          v-if="mode === 'week'"
+          v-model:value="currentDate"
+          picker="week"
+          format="YYYY 第wo"
+          @change="onDateChange"
+          class="flex-1"
+        />
+        <a-date-picker
+          v-else
+          v-model:value="currentDate"
+          picker="month"
+          format="YYYY年M月"
+          @change="onDateChange"
+          class="flex-1"
         />
       </div>
-
-      <div class="flex-1 overflow-y-auto">
-        <div v-if="selectedDayNodes.length === 0" class="flex items-center justify-center h-full text-[var(--muted-foreground)] text-sm">
-          该日期没有已完成的待办事项
-        </div>
-        <template v-for="node in selectedDayNodes" :key="node.id">
-          <TodoItem
-            :todo="node"
-            :settings="{ completionMode: 'checkbox', longPressDuration: 3, theme: 'system', happyMode: false, fontFamily: 'default', addTodoShortcut: { key: 'Enter', ctrl: false, shift: false, alt: false, meta: false }, tags: [], categories: [], defaultCategoryId: null, cloudSync: { enabled: false, provider: 'webdav', webdavUrl: '', webdavUsername: '', webdavPassword: '', fetchOnStartup: true, uploadOnExit: true, keepRecent: 3 }, autoBackup: { enabled: false, interval: 30, unit: 'minute' }, autoRestore: { enabled: false, interval: 30, unit: 'minute' } }"
-            :is-editing="false"
-            :edit-content="''"
-            :readonly="true"
-            :has-children="node.children.length > 0"
-          />
-          <template v-if="node.children.length > 0">
-            <div v-for="child in node.children" :key="child.id" class="pl-6">
-              <TodoItem
-                :todo="child"
-                :settings="{ completionMode: 'checkbox', longPressDuration: 3, theme: 'system', happyMode: false, fontFamily: 'default', addTodoShortcut: { key: 'Enter', ctrl: false, shift: false, alt: false, meta: false }, tags: [], categories: [], defaultCategoryId: null, cloudSync: { enabled: false, provider: 'webdav', webdavUrl: '', webdavUsername: '', webdavPassword: '', fetchOnStartup: true, uploadOnExit: true, keepRecent: 3 }, autoBackup: { enabled: false, interval: 30, unit: 'minute' }, autoRestore: { enabled: false, interval: 30, unit: 'minute' } }"
-                :is-editing="false"
-                :edit-content="''"
-                :readonly="true"
-                :is-sub-task="true"
-                :depth="1"
-              />
-            </div>
-          </template>
-        </template>
-      </div>
     </div>
+
+    <template v-if="viewMode === 'list'">
+      <div class="flex-1 flex overflow-hidden">
+        <div class="w-[150px] border-r border-[var(--border)] shrink-0 min-h-0" style="overflow-y: auto; max-height: 100%;">
+          <a-menu
+            mode="inline"
+            :items="dayItems"
+            :selectedKeys="[selectedDay]"
+            @select="onSelect"
+            style="border-inline-end: none !important;"
+          />
+        </div>
+
+        <div class="flex-1 overflow-y-auto">
+          <div v-if="selectedDayNodes.length === 0" class="flex items-center justify-center h-full text-[var(--muted-foreground)] text-sm">
+            该日期没有已完成的待办事项
+          </div>
+          <template v-for="node in selectedDayNodes" :key="node.id">
+            <TodoItem
+              :todo="node"
+              :settings="{ completionMode: 'checkbox', longPressDuration: 3, theme: 'system', happyMode: false, fontFamily: 'default', addTodoShortcut: { key: 'Enter', ctrl: false, shift: false, alt: false, meta: false }, tags: [], categories: [], defaultCategoryId: null, cloudSync: { enabled: false, provider: 'webdav', webdavUrl: '', webdavUsername: '', webdavPassword: '', fetchOnStartup: true, uploadOnExit: true, keepRecent: 3 }, autoBackup: { enabled: false, interval: 30, unit: 'minute' }, autoRestore: { enabled: false, interval: 30, unit: 'minute' } }"
+              :is-editing="false"
+              :edit-content="''"
+              :readonly="true"
+              :has-children="node.children.length > 0"
+            />
+            <template v-if="node.children.length > 0">
+              <div v-for="child in node.children" :key="child.id" class="pl-6">
+                <TodoItem
+                  :todo="child"
+                  :settings="{ completionMode: 'checkbox', longPressDuration: 3, theme: 'system', happyMode: false, fontFamily: 'default', addTodoShortcut: { key: 'Enter', ctrl: false, shift: false, alt: false, meta: false }, tags: [], categories: [], defaultCategoryId: null, cloudSync: { enabled: false, provider: 'webdav', webdavUrl: '', webdavUsername: '', webdavPassword: '', fetchOnStartup: true, uploadOnExit: true, keepRecent: 3 }, autoBackup: { enabled: false, interval: 30, unit: 'minute' }, autoRestore: { enabled: false, interval: 30, unit: 'minute' } }"
+                  :is-editing="false"
+                  :edit-content="''"
+                  :readonly="true"
+                  :is-sub-task="true"
+                  :depth="1"
+                />
+              </div>
+            </template>
+          </template>
+        </div>
+      </div>
+    </template>
+
+    <CalendarView v-else :todos="todos" />
   </div>
 </template>

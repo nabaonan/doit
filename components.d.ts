@@ -13,6 +13,7 @@ declare module 'vue' {
   export interface GlobalComponents {
     AApp: typeof import('antdv-next')['App']
     AButton: typeof import('antdv-next')['Button']
+    ACalendar: typeof import('antdv-next')['Calendar']
     ACollapse: typeof import('antdv-next')['Collapse']
     AColorPicker: typeof import('antdv-next')['ColorPicker']
     AConfigProvider: typeof import('antdv-next')['ConfigProvider']
@@ -25,6 +26,7 @@ declare module 'vue' {
     AInputPassword: typeof import('antdv-next')['InputPassword']
     AMenu: typeof import('antdv-next')['Menu']
     AModal: typeof import('antdv-next')['Modal']
+    APopover: typeof import('antdv-next')['Popover']
     AProgress: typeof import('antdv-next')['Progress']
     ARadio: typeof import('antdv-next')['Radio']
     ARadioGroup: typeof import('antdv-next')['RadioGroup']
@@ -38,6 +40,7 @@ declare module 'vue' {
     ATimelineItem: typeof import('antdv-next')['TimelineItem']
     ATooltip: typeof import('antdv-next')['Tooltip']
     BackupDialog: typeof import('./src/components/BackupDialog.vue')['default']
+    CalendarView: typeof import('./src/components/CalendarView.vue')['default']
     CategoryDialog: typeof import('./src/components/CategoryDialog.vue')['default']
     ColorLabelAdder: typeof import('./src/components/ColorLabelAdder.vue')['default']
     ColorLabelRow: typeof import('./src/components/ColorLabelRow.vue')['default']
