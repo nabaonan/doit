@@ -53,13 +53,17 @@ const selectedDayTitle = computed(() => {
   return selectedDate.value.format("YYYY年MM月DD日") + ` · 完成 ${selectedDayTodos.value.length} 个待办`
 })
 
-function onSelect(date: dayjs.Dayjs) {
+const panelValue = ref(dayjs())
+
+function onSelect(date: dayjs.Dayjs, extra: { source: string }) {
+  if (extra.source !== "date") return
   selectedDate.value = date
   showDetail.value = true
 }
 
 function onPanelChange(date: dayjs.Dayjs, mode: string) {
   currentPanelMode.value = mode as "month" | "year"
+  panelValue.value = date
 }
 
 function getCellTodos(date: dayjs.Dayjs) {
@@ -75,6 +79,7 @@ function getCellTodos(date: dayjs.Dayjs) {
 <template>
   <div class="flex-1 overflow-auto p-4">
     <a-calendar
+      :value="panelValue"
       :fullscreen="true"
       @select="onSelect"
       @panelChange="onPanelChange"
