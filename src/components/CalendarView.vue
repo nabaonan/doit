@@ -23,6 +23,22 @@ const dailyCompletedMap = computed(() => {
   return m
 })
 
+const monthlyCompletedMap = computed(() => {
+  const m = new Map<string, TodoItem[]>()
+  for (const t of props.todos) {
+    if (!t.completed || !t.completedAt) continue
+    const key = dayjs(t.completedAt).format("YYYY-MM")
+    const list = m.get(key)
+    if (list) {
+      list.push(t)
+    } else {
+      m.set(key, [t])
+    }
+  }
+  return m
+})
+
+const currentPanelMode = ref<"month" | "year">("month")
 const selectedDate = ref<dayjs.Dayjs | null>(null)
 const showDetail = ref(false)
 
@@ -41,6 +57,19 @@ function onSelect(date: dayjs.Dayjs) {
   selectedDate.value = date
   showDetail.value = true
 }
+
+function onPanelChange(date: dayjs.Dayjs, mode: string) {
+  currentPanelMode.value = mode as "month" | "year"
+}
+
+function getCellTodos(date: dayjs.Dayjs) {
+  if (currentPanelMode.value === "year") {
+    const key = date.format("YYYY-MM")
+    return monthlyCompletedMap.value.get(key) || []
+  }
+  const key = date.format("YYYY-MM-DD")
+  return dailyCompletedMap.value.get(key) || []
+}
 </script>
 
 <template>
@@ -48,23 +77,24 @@ function onSelect(date: dayjs.Dayjs) {
     <a-calendar
       :fullscreen="true"
       @select="onSelect"
+      @panelChange="onPanelChange"
     >
       <template #cellRender="{ date }">
-        <div class="flex flex-col h-full cursor-pointer overflow-hidden">
-          <div class="flex-1 overflow-y-auto min-h-0 space-y-0.5 px-0.5">
+        <div class="flex flex-col h-full cursor-pointer timeview-cell scrollbar-thin">
+          <div class="flex-1 min-h-0 space-y-0.5 px-0.5 timeview-scroll" style="overflow-y: auto; scrollbar-width: thin;">
             <div
-              v-for="todo in dailyCompletedMap.get(date.format('YYYY-MM-DD'))!"
+              v-for="todo in getCellTodos(date)"
               :key="todo.id"
               class="flex items-center gap-1 truncate"
               :title="todo.content"
             >
-              <CheckCircleFilled class="shrink-0 text-[var(--primary)] text-[9px]" />
+              <CheckCircleFilled class="shrink-0 text-[10px]" style="color: #22c55e" />
               <span class="text-[11px] text-[var(--muted-foreground)] truncate leading-4">{{ todo.content }}</span>
             </div>
           </div>
           <div class="flex items-center justify-end px-1 pb-1 shrink-0">
-            <span v-if="dailyCompletedMap.get(date.format('YYYY-MM-DD'))?.length" class="text-[10px] text-[var(--primary)] font-semibold leading-none">
-              {{ dailyCompletedMap.get(date.format('YYYY-MM-DD'))!.length }}项
+            <span v-if="getCellTodos(date).length" class="text-[10px] text-[var(--primary)] font-semibold leading-none">
+              {{ getCellTodos(date).length }}项
             </span>
           </div>
         </div>
@@ -87,10 +117,53 @@ function onSelect(date: dayjs.Dayjs) {
           :key="todo.id"
           class="flex items-start gap-2 py-2 px-1 border-b border-[var(--border)] last:border-b-0"
         >
-          <CheckCircleFilled class="mt-0.5 shrink-0 text-[var(--primary)] text-sm" />
+          <CheckCircleFilled class="mt-0.5 shrink-0 text-sm" style="color: #22c55e" />
           <span class="text-sm text-[var(--foreground)] leading-5 break-all">{{ todo.content }}</span>
         </div>
       </div>
     </a-modal>
   </div>
 </template>
+
+<style>
+.timeview-scroll::-webkit-scrollbar {
+  width: 4px !important;
+  height: 4px !important;
+}
+.timeview-scroll::-webkit-scrollbar-track {
+  background: transparent !important;
+}
+.timeview-scroll::-webkit-scrollbar-thumb {
+  background: var(--border) !important;
+  border-radius: 9999px !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+.timeview-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--muted-foreground) !important;
+}
+
+/* Firefox */
+.timeview-scroll {
+  scrollbar-width: thin !important;
+  scrollbar-color: var(--border) transparent !important;
+}
+
+
+/* ant-calendar 内部时间轴滚轮也隐藏原生日历系统滚动条 */
+.timeview-cell :deep(.ant-picker-calendar-date-content) {
+  scrollbar-width: thin !important;
+  scrollbar-color: var(--border) transparent !important;
+}
+.timeview-cell :deep(.ant-picker-calendar-date-content::-webkit-scrollbar) {
+  width: 4px !important;
+  height: 4px !important;
+}
+.timeview-cell :deep(.ant-picker-calendar-date-content::-webkit-scrollbar-track) {
+  background: transparent !important;
+}
+.timeview-cell :deep(.ant-picker-calendar-date-content::-webkit-scrollbar-thumb) {
+  background: var(--border) !important;
+  border-radius: 9999px !important;
+}
+</style>
